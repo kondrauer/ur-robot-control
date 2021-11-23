@@ -6,7 +6,7 @@ class Server:
 		
 		self.serverSocket: socket.socket = socket.socket(family = family, type = type) 
 		self.ip = socket.gethostbyname(socket.gethostname())
-		print(self.ip)
+		logger.info(self.ip)
 		self.serverAddress: tuple = (ip, port)
 
 		self.serverSocket.bind(self.serverAddress)
@@ -16,7 +16,7 @@ class Server:
 	def __del__(self) -> None:
 		
 		self.serverSocket.close()
-		print('Connection closed')
+		logger.info('Connection closed')
 		
 	def establishConnection(self):
 		
@@ -24,7 +24,7 @@ class Server:
 		self.serverSocket.listen(1)
 		commSocket, commAddress = self.serverSocket.accept()
 		
-		print(f' Connected to {commAddress[0]}:{commAddress[1]}')
+		logger.info(f'Connected to {commAddress[0]}:{commAddress[1]}')
 		
 		return commSocket, commAddress
 		
@@ -35,13 +35,15 @@ class Server:
 		self.commSocket = None
 		self.commAddress = None
 		
-		print('Connection closed')
+		logger.info('Connection closed')
 		
 	def sendData(self, data: str) -> None:
 	
 		self.commSocket.send(data.encode())
+		logging.info('Sending data')
 		
 	def receiveData(self, bytes: int) -> str:
-	
+		
+		logger.info('Receiving data')
 		return self.commSocket.recv(bytes).decode()
 		
