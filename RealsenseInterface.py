@@ -5,6 +5,8 @@ import cv2
 import time
 import glob
 
+import logging
+
 from pathlib import Path
 
 class RealsenseInterface:
@@ -102,7 +104,7 @@ class RealsenseInterface:
 
 				for i in range(int(preset_range.max)):
 					visulpreset = depth_sensor.get_option_value_description(rs.option.visual_preset,i)
-					print('%02d: %s' %(i,visulpreset))
+					#print('%02d: %s' %(i,visulpreset))
 					if visulpreset == "Low Ambient Light":
 						depth_sensor.set_option(rs.option.visual_preset, i)
 				
@@ -120,13 +122,13 @@ class RealsenseInterface:
 				if self.color and self.depth:
 					self.getExtrinsics()
 				
-				print('Camera start successfull! :-)')
+				logging.info('Camera start successfull! :-)')
 				break
 				
 			except Exception as e:
 			
 				print(e)
-				print('Error occured, stopping pipeline and resetting Hardware now...')
+				logging.error('Error occured, stopping pipeline and resetting Hardware now...')
 				# Stopping pipeline
 				self.pipeline.stop()
 				# Hardware reset the device(s) if anything doesn't work
@@ -177,25 +179,25 @@ class RealsenseInterface:
 	def printIntrinsics(self) -> None:
 		
 		if self.color:
-			print('Camera matrix:')
-			print(self.colorCameraMatrix)
-			print('Distortion model:')
-			print(self.colorCameraDistortion)
+			logging.info('Camera matrix:')
+			logging.info(self.colorCameraMatrix)
+			logging.info('Distortion model:')
+			logging.info(self.colorCameraDistortion)
 		
 		if self.depth:
-			print('Depth Intrinsics:')
-			print(self.depthCameraMatrix)
+			logging.info('Depth Intrinsics:')
+			logging.info(self.depthCameraMatrix)
 		
 	
 	def printExtrinsics(self) -> None:	
 		
 		if self.color and self.depth:
-			print('Rotation depth -> color:') 
-			print(self.depthToColorRotation)
-			print('Translation depth -> color:') 
-			print(self.depthToColorTranslation*1000)
+			logging.info('Rotation depth -> color:') 
+			logging.info(self.depthToColorRotation)
+			logging.info('Translation depth -> color:') 
+			logging.info(self.depthToColorTranslation)
 		else:
-			print('This only works with color and depth both enabled!')
+			logging.warning('This only works with color and depth both enabled!')
 		
 	def saveIntrinsics(self) -> None:
 		
@@ -206,7 +208,7 @@ class RealsenseInterface:
 		with open('calibration/cameraDistortion.npy', 'wb') as f:
 			np.save(f, self.colorCameraDistortion)
 		
-		print('Intrinsics saved!')
+		logging.info('Intrinsics saved!')
 	
 	def saveExtrinsics(self) -> None:
 		
@@ -217,7 +219,7 @@ class RealsenseInterface:
 		with open('calibration/translationDepthToColor.npy', 'wb') as f:
 			np.save(f, self.depthToColorTranslation)
 		
-		print('Extrinsics saved!')
+		logging.info('Extrinsics saved!')
 	
 	def getFrames(self, filter: bool = False, frameCount: int = 5) -> None:
 		

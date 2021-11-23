@@ -2,6 +2,8 @@ import cv2
 import RealsenseInterface
 import numpy as np
 
+import logging
+
 from autolab_core import RigidTransform
 
 from pathlib import Path
@@ -47,7 +49,7 @@ class CharucoPoseEstimator:
 												 self.realsense.colorCameraMatrix, self.realsense.colorCameraDistortion)
 												 
 			if cornerCount > 0 and len(ids) > 0:
-				print(f'Detected Corners: {cornerCount}, IDs: {len(ids)}')
+				logging.info(f'Detected Corners: {cornerCount}, IDs: {len(ids)}')
 				
 				if self.showDetectedAruco:
 					cv2.aruco.drawDetectedCornersCharuco(colorArray, corners, ids)
@@ -67,11 +69,11 @@ class CharucoPoseEstimator:
 					translationVectorWorldToCamera[2] = translationVectorWorldToCamera[2] + correction_z
 					
 					if debug:
-						print('Rotation: ')
-						print(rotationMatrixWorldToCamera)
-						print('Translation: ')
-						print(translationVectorWorldToCamera)
-						print(f'Distance: {np.linalg.norm(translationVectorWorldToCamera)}')
+						logging.info('Rotation: ')
+						logging.info(rotationMatrixWorldToCamera)
+						logging.info('Translation: ')
+						logging.info(translationVectorWorldToCamera)
+						logging.info(f'Distance: {np.linalg.norm(translationVectorWorldToCamera)}')
 					
 					if self.showPoseEstimationCharuco:
 						cv2.imshow('Estimated Pose', colorArray)
@@ -80,7 +82,7 @@ class CharucoPoseEstimator:
 					return True, rotationMatrixWorldToCamera, translationVectorWorldToCamera
 					
 				else:
-					print('Not enough corners detected try again!')
+					logging.error('Not enough corners detected try again!')
 					
 					return False, None, None
 					
@@ -121,11 +123,11 @@ class CharucoPoseEstimator:
 			tfDepthToWorld = tfWorldToDepth.inverse()
 			
 			if debug:
-				print(tfDepthToWorld)
+				logging.info(tfDepthToWorld)
 			
 			return tfDepthToWorld
 		else:
-			print('Failed to estimate pose, try again')
+			logging.error('Failed to estimate pose, try again')
 			return None
 		
 	def savePoseAsDepthToWorldTransform(self, path: str = '/media/max/gqcnn/gqcnn/data/calib/realsense/realsense_to_world.tf'):
@@ -135,10 +137,7 @@ class CharucoPoseEstimator:
 		if tfDepthToWorld:
 			
 			tfDepthToWorld.save(path)	
-			print('Saved Depth to World transform to ' + path)	
-			
-		else:
-			print('Failed to estimate pose, try again')
+			logger.info('Saved Depth to World transform to ' + path)	
 
 		
 if __name__ == '__main__':
