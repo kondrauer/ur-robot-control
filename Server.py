@@ -1,26 +1,58 @@
 import socket
 
 class Server:
+	"""Small wrapper class for built-in socket module
 	
-	def __init__(self, family = socket.AF_INET, type = socket.SOCK_STREAM, ip: str = '10.83.2.1', port: int = 2000) -> None:
+	Attributes:
+		serverSocket(socket.socket): socket object for low lever network interfacing
+		ip(str): ip as string
+		serverAddress(tuple): tuple of ip as string and port as int
+		
+		commSocket(socket.socket): socket object for communicating with robot
+		commAddress(tuple): address of communication socket
+		
+	"""	
+	
+	def __init__(self, family = socket.AF_INET, type = socket.SOCK_STREAM, ip: str = None, port: int = 2000) -> None:
+		"""Constructor for Server
+		
+		Args:
+			family: determines connection type, default is ipv4
+			type: determines protocol type, default is tcp
+			ip(str): ip as string, if no ip is given constructor tries to get one
+			port(int): port as int
+			
+		"""
 		
 		self.serverSocket: socket.socket = socket.socket(family = family, type = type) 
-		self.ip = socket.gethostbyname(socket.gethostname())
-		logger.info(self.ip)
-		self.serverAddress: tuple = (ip, port)
-
+		
+		if not ip:
+			self.ip = socket.gethostbyname(socket.gethostname())
+		
+		self.serverAddress: tuple = (self.ip, port)
 		self.serverSocket.bind(self.serverAddress)
-		self.commSocket = None
-		self.commAddress = None
+		logger.info(f'Socket bound to: {self.ip}')
+		
+		self.commSocket: socket.socket = None
+		self.commAddress: tuple = None
 		
 	def __del__(self) -> None:
+		"""Destructor for Server
 		
+		Tries to close connection if not already done
+		"""
 		self.serverSocket.close()
 		logger.info('Connection closed')
 		
 	def establishConnection(self):
+		"""Listens for and establishes connections
 		
-		# try ergänzen
+		Returns:
+			socket.socket: socket for communication
+			tuple: ip as str and port of communicating client 
+		"""
+		
+		#TODO: try ergänzen
 		self.serverSocket.listen(1)
 		commSocket, commAddress = self.serverSocket.accept()
 		
@@ -29,21 +61,47 @@ class Server:
 		return commSocket, commAddress
 		
 	def closeConnection(self) -> None:
+		"""Closes connection to client
+
+		"""
+		if self.commSocket and self.commAddress:
+				
+			self.serverSocket.close()
 		
-		self.serverSocket.close()
+			self.commSocket = None
+			self.commAddress = None
 		
-		self.commSocket = None
-		self.commAddress = None
+			logger.info('Connection closed')
 		
-		logger.info('Connection closed')
+		else:
+			logger.error('No connection established, cant be closed!')
 		
 	def sendData(self, data: str) -> None:
-	
-		self.commSocket.send(data.encode())
-		logging.info('Sending data')
+		"""Encodes and sends data to connected client.
 		
+		Args:
+			data(str): data to send
+
+		"""
+		if self.commSocket and self.commAddress:
+		
+			self.commSocket.send(data.encode())
+			logging.info('Sending data')
+			
+		else:
+			logger.error('No connection established, sending not possible!')
+			
 	def receiveData(self, bytes: int) -> str:
+		"""Receives and decodes data from connected client.
 		
-		logger.info('Receiving data')
-		return self.commSocket.recv(bytes).decode()
+		Returns:
+			str: received bytes decoded, None if no connection
+
+		"""
+		if self.commSocket and self.commAddress:
+			logger.info('Receiving data')
+			return self.commSocket.recv(bytes).decode()
+		else:
+			logger.error('No connection established, receiving not possible!')
+			return None
 		
