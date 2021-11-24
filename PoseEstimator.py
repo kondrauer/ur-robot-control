@@ -1,21 +1,40 @@
 import cv2 
-import RealsenseInterface
 import numpy as np
-
 import logging
 
+from RealsenseInterface import RealsenseInterface
 from autolab_core import RigidTransform
 
 from pathlib import Path
 
 class CharucoPoseEstimator:
-
-	def __init__(self, showDetectedAruco: bool = True, showDetectedCharucoBoard: bool = True, showPoseEstimationCharuco: bool = True, 
-			squareX: int = 5, squareY: int = 7, squareLength: float = 0.035, squareWidth: float = 0.023, depth: bool = False) -> None:
+	"""Class for estimating camera pose of a realsense L515 with regards to a charuco board
+	
+	Attributes:
+		squareX (int): number of squares on short side
+		squareY (int): number of squares on long side
+		squareLength (float): length of squares in meters
+		squareWidth (float): width of squares in meters
 		
-		self.showDetectedAruco = showDetectedAruco
-		self.showDetectedCharucoBoard = showDetectedCharucoBoard
-		self.showPoseEstimationCharuco = showPoseEstimationCharuco
+		arucoDict: predefined aruco dict from opencv
+		charucoBoard: board representation from opencv
+		boardSize: holding number of corners
+		
+		realsense (RealsenseInterface): class object to interface with intel realsense
+	"""
+
+
+	def __init__(self, squareX: int = 5, squareY: int = 7, squareLength: float = 0.035, squareWidth: float = 0.023, depth: bool = False) -> None:
+		"""Constructor for CharucoPoseEstimator
+		
+		Args:
+			squareX (int): number of squares on short side
+			squareY (int): number of squares on long side
+			squareLength (float): length of squares in meters
+			squareWidth (float): width of squares in meters
+			depth (bool): determines if depth-sensor should be enabled or not
+			
+		"""
 		
 		self.squareX: int = squareX
 		self.squareY: int = squareY
@@ -26,14 +45,18 @@ class CharucoPoseEstimator:
 		self.charucoBoard = cv2.aruco.CharucoBoard_create(self.squareX, self.squareY, self.squareLength, self.squareWidth, self.arucoDict)
 		self.boardSize = self.charucoBoard.getChessboardSize()
 		
-		self.realsense = RealsenseInterface.RealsenseInterface(depth=depth)
+		self.realsense = RealsenseInterface(depth=depth)
 		self.realsense.start()
 	
 	def estimatePose(self, correction_z: int = 0.035, debug: bool = False):
+		"""Estimates the camera pose with regards to a charuco board
 		
-		# code from RoboDK Python API Tutorials, slightly altered
-		# https://robodk.com/doc/en/PythonAPI/examples.html#camera-pose
+		Args:
+			correction_z (float): correction constant for z-translation
+			debug (bool): shows information about estimated pose if true	
+		"""
 		
+		# Take a picture with realsense and get the colorFrame as np.array
 		self.realsense.getFrames()
 		
 		colorFrame = self.realsense.colorFrame
@@ -42,18 +65,21 @@ class CharucoPoseEstimator:
 		# Find the Board markers
 		markerCorners, markerIds, _ = cv2.aruco.detectMarkers(colorArray, self.arucoDict, cameraMatrix = self.realsense.colorCameraMatrix, distCoeff = self.realsense.colorCameraDistortion)
 		
+		# Check if markers are detected
 		if markerIds is not None and len(markerIds) > 0:
 			
 			# Interpolate the charuco corners from markers
 			cornerCount, corners, ids = cv2.aruco.interpolateCornersCharuco(markerCorners, markerIds, colorArray, self.charucoBoard,
 												 self.realsense.colorCameraMatrix, self.realsense.colorCameraDistortion)
-												 
+			# Check if any corner is found								 
 			if cornerCount > 0 and len(ids) > 0:
+			
 				logging.info(f'Detected Corners: {cornerCount}, IDs: {len(ids)}')
 				
-				if self.showDetectedAruco:
+				if debug:
 					cv2.aruco.drawDetectedCornersCharuco(colorArray, corners, ids)
 				
+				# Estimate camera pose
 				success, rotationVectorWorldToCamera, translationVectorWorldToCamera = cv2.aruco.estimatePoseCharucoBoard(corners, ids, self.charucoBoard, 														self.realsense.colorCameraMatrix, self.realsense.colorCameraDistortion, None, None, False)
 				
 				if success:
@@ -62,10 +88,12 @@ class CharucoPoseEstimator:
 					
 				minCorners = int((self.boardSize[0] - 1) * (self.boardSize[1] - 1) * 0.5) # as % of total
 				
+				# At least 50% of the corners need to be detected, otherwise pose is not legit
 				if cornerCount >= minCorners and ids.size >= minCorners:
 					
 					rotationMatrixWorldToCamera, _ = cv2.Rodrigues(rotationVectorWorldToCamera)
 					
+					# There seems to be a systematic error with the z-coordinate, so we add a constant
 					translationVectorWorldToCamera[2] = translationVectorWorldToCamera[2] + correction_z
 					
 					if debug:
@@ -75,7 +103,6 @@ class CharucoPoseEstimator:
 						logging.info(translationVectorWorldToCamera)
 						logging.info(f'Distance: {np.linalg.norm(translationVectorWorldToCamera)}')
 					
-					if self.showPoseEstimationCharuco:
 						cv2.imshow('Estimated Pose', colorArray)
 						key = cv2.waitKey(0)
 						
@@ -86,8 +113,13 @@ class CharucoPoseEstimator:
 					
 					return False, None, None
 					
-	def saveNPoses(self, n: int = 20):
-	
+	def saveNPoses(self, n: int = 20) -> None:
+		"""Saves n poses to file for lates usage or calibration
+		
+		Args:
+			n (int): Number of poses to capture	
+		"""
+		
 		rMat = []
 		tVec = []
 		
@@ -110,8 +142,18 @@ class CharucoPoseEstimator:
 			np.save(f, np.array(tVec))
 	
 	def getDepthToWorldTransform(self, debug: bool = False) -> RigidTransform:
+		"""Computes transform from depth-frame of camera to world-frame
 		
-		success, rMatWorldToCamera, tVecWorldToCamera = self.estimatePose(debug=False, correction_z = 0.050)
+		Args:
+			debug (bool): shows information about computed transformations if true	
+			
+		Returns:
+			
+			RigidTransform: Transformation from depth to world
+			
+		"""	
+			
+		success, rMatWorldToCamera, tVecWorldToCamera = self.estimatePose(debug=debug, correction_z = 0.050)
 		
 		if success:
 			
@@ -131,18 +173,22 @@ class CharucoPoseEstimator:
 			return None
 		
 	def savePoseAsDepthToWorldTransform(self, path: str = '/media/max/gqcnn/gqcnn/data/calib/realsense/realsense_to_world.tf'):
+		"""Saves current pose as depth to world transform for usage with gqcnn package
 		
+		Args:
+			path (str): path to save the transform to
+		"""	
+			
 		tfDepthToWorld = self.getDepthToWorldTransform()
 		
 		if tfDepthToWorld:
 			
 			tfDepthToWorld.save(path)	
 			logger.info('Saved Depth to World transform to ' + path)	
-
 		
 if __name__ == '__main__':
 
-	cpe = CharucoPoseEstimator(showPoseEstimationCharuco=False, depth=True)
+	cpe = CharucoPoseEstimator(depth=True)
 	#_, rMat, tVec = cpe.estimatePose(debug=True)
 	
 	cpe.savePoseAsDepthToWorldTransform()	
