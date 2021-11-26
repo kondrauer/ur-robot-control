@@ -59,7 +59,7 @@ class RealsenseInterface:
 	"""
 	
 	def __init__(self, color: bool = True, depth: bool = True, align: bool = False, decimation: bool = False, colorWidth: int = 1280, 
-			colorHeight: int = 720, colorFPS: int = 30, depthWidth: int = 1024, depthHeight: int = 768, depthFPS: int = 30):
+			colorHeight: int = 720, colorFPS: int = 30, depthWidth: int = 640, depthHeight: int = 480, depthFPS: int = 30):
 		"""Constructor for RealsenseInterface
 		
 		Args:
@@ -124,7 +124,7 @@ class RealsenseInterface:
 		self.disparityToDepth: rs.disparity_transform = rs.disparity_transform(False)
 
 		if self.align:
-			self.align: rs.align = rs.align(rs.stream.color)
+			self.align: rs.align = rs.align(rs.stream.depth)
 		
 		# Intrinsics
 		self.depthIntrinsics: rs.intrinsics = None
@@ -356,8 +356,6 @@ class RealsenseInterface:
 			    frameset = self.pipeline.wait_for_frames()
 			    frames.append(frameset.get_depth_frame())
 
-			self.colorFrame = frameset.get_color_frame()
-			
 			# apply filters successively
 			for x in range(frameCount):
 				self.frame = frames[x]
@@ -374,6 +372,7 @@ class RealsenseInterface:
 			# align the streams if true
 			if self.align:
 			    	self.frame = self.align.process(frameset)
+			    	self.colorFrame = self.frame.get_color_frame()
 			    	self.depthFrame = self.frame.get_depth_frame()
 			else:   	
 				self.depthFrame = self.frame
