@@ -130,6 +130,8 @@ class RealsenseInterface:
 		self.depthIntrinsics: rs.intrinsics = None
 		self.colorIntrinsics: rs.intrinsics = None
 		
+		self.depth_scale = None
+		
 		# Extrinsics between color and depth
 		self.depthToColorExtrinsics: rs.extrinsics = None
 		self.colorToDepthExtrinsics: rs.extrinsics = None
@@ -187,6 +189,7 @@ class RealsenseInterface:
 				# get depth sensor and its available presets
 				depth_sensor = self.profile.get_device().first_depth_sensor()
 				preset_range = depth_sensor.get_option_range(rs.option.visual_preset)
+				self.depth_scale = depth_sensor.get_depth_scale()
 				
 				# iterate over presets and select 'Low Ambient Light' one
 				for i in range(int(preset_range.max)):
@@ -355,7 +358,9 @@ class RealsenseInterface:
 			for x in range(frameCount):
 			    frameset = self.pipeline.wait_for_frames()
 			    frames.append(frameset.get_depth_frame())
-
+			
+			self.colorFrame = frameset.get_color_frame()
+			
 			# apply filters successively
 			for x in range(frameCount):
 				self.frame = frames[x]
@@ -374,7 +379,8 @@ class RealsenseInterface:
 			    	self.frame = self.align.process(frameset)
 			    	self.colorFrame = self.frame.get_color_frame()
 			    	self.depthFrame = self.frame.get_depth_frame()
-			else:   	
+			else:
+				   	
 				self.depthFrame = self.frame
 		else:
 			# just save one frame set if no filters are applied
@@ -409,32 +415,35 @@ class RealsenseInterface:
 
 		"""
 		
-		if self.align:
-			while True:
-		
-				self.getFrames(filter = filter)
-				
-				if self.color:
-					colorImage = np.array(self.colorFrame.get_data())
-				if self.depth:
-					depthArray = np.array(self.depthFrame.get_data())
-					# apply colormap to depth frame so it looks pretty
-					coloredDepth = cv2.applyColorMap(cv2.convertScaleAbs(depthArray, alpha=255/depthArray.max()), cv2.COLORMAP_JET)
-				
-				# stack the pictures next to each other
-				images = np.hstack((colorImage, coloredDepth))
-				
-				# show images
-				cv2.namedWindow('RealSense', cv2.WINDOW_AUTOSIZE)
-				cv2.imshow('RealSense', images)
-				key = cv2.waitKey(1)
-				
-				# close if q or esc are pressed
-				if key & 0xFF == ord('q') or key == 27:
-					cv2.destroyAllWindows()
-					break
-		else:
-			logging.error('Streams need to be aligned for the viewer to work!')
+		#if self.align:
+		while True:
+	
+			self.getFrames(filter = filter)
+			
+			if self.color:
+				colorImage = np.array(self.colorFrame.get_data())
+			if self.depth:
+				depthArray = np.array(self.depthFrame.get_data())
+				# apply colormap to depth frame so it looks pretty
+				coloredDepth = cv2.applyColorMap(cv2.convertScaleAbs(depthArray, alpha=255/depthArray.max()), cv2.COLORMAP_JET)
+			
+			# stack the pictures next to each other
+			#images = np.hstack((colorImage, coloredDepth))
+			
+			# show images
+			cv2.namedWindow('RealSense', cv2.WINDOW_AUTOSIZE)
+			cv2.imshow('RealSense', colorImage)
+			
+			cv2.namedWindow('RealSenseDepth', cv2.WINDOW_AUTOSIZE)
+			cv2.imshow('RealSenseDepth', coloredDepth)
+			key = cv2.waitKey(1)
+			
+			# close if q or esc are pressed
+			if key & 0xFF == ord('q') or key == 27:
+				cv2.destroyAllWindows()
+				break
+		#else:
+		#	logging.error('Streams need to be aligned for the viewer to work!')
 	
 	def saveImageSet(self, iterationsDilation: int = 3, filter: bool = False) -> None:
 		"""Saves an image set for later use with a gqcnn.
@@ -460,13 +469,15 @@ class RealsenseInterface:
 		cv2.imwrite(f'img/color_{pngCount}.png', colorArray)
 		
 		# turn depth frame into array and apply color map
-		depthArray = np.array(self.depthFrame.get_data())
+		depthArray = np.array(self.depthFrame.get_data(), dtype=np.float32)
+		depthArray *= self.depth_scale
 		coloredDepth = cv2.applyColorMap(cv2.convertScaleAbs(depthArray, alpha=255/depthArray.max()), cv2.COLORMAP_JET)
 		
 		# saved colored depth as .png and .npy
 		cv2.imwrite(f'img/depth_{pngCount}.png', coloredDepth)
 		with open(f'img/depth_{pngCount}.npy', 'wb') as f:
-    			np.save(f, np.array(self.depthFrame.get_data()))
+			print(depthArray.shape)
+			np.save(f, depthArray.reshape(depthArray.shape[0], depthArray.shape[1], 1))
     		
     		# this can be tuned, depends on lighting conditions	
 		lowerGreen = np.array([0, 40, 0])
@@ -478,7 +489,7 @@ class RealsenseInterface:
 		
 		# mask around the middle of the picture, makes it easier if the table is not filling the whole picture
 		# can be altered if the whole background is green
-		mask = cv2.inRange(colorArray[midY-250:midY+250, midX-250:midX+250], lowerGreen, upperGreen)
+		mask = cv2.inRange(colorArray[midY-100:midY+100, midX-100:midX+100], lowerGreen, upperGreen)
 		
 		# dilation and median blur to smooth mask and fill holes
 		kernel = np.ones((3,3), np.uint8)
@@ -487,14 +498,17 @@ class RealsenseInterface:
 		
 		# close any remaining holes by just ignoring them if they are to far from the center of the picture
 		binary = np.zeros(colorArray.shape[:2])
-		binary[midY-250:midY+250, midX-250:midX+250] = ~mask
+		binary[midY-100:midY+100, midX-100:midX+100] = ~mask
+		
+		binary = cv2.resize(binary, (depthArray.shape[1], depthArray.shape[0]))
 		cv2.imwrite(f'img/segmask_{pngCount}.png', binary)
 				
 if __name__ == '__main__':
-
-	realsense = RealsenseInterface(align=True, decimation=False)
+	
+	logging.getLogger().setLevel(logging.INFO)
+	realsense = RealsenseInterface(align=True, decimation=True)
 	realsense.start()
 	
-	realsense.printIntrinsics()
+	#realsense.printIntrinsics()
 	realsense.openViewer(filter=True)
 	realsense.saveImageSet(iterationsDilation = 0, filter=True)	
