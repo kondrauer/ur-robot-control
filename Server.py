@@ -1,5 +1,7 @@
 import socket
 
+import logging
+
 class Server:
 	"""Small wrapper class for built-in socket module
 	
@@ -13,7 +15,7 @@ class Server:
 		
 	"""	
 	
-	def __init__(self, family = socket.AF_INET, type = socket.SOCK_STREAM, ip: str = None, port: int = 2000) -> None:
+	def __init__(self, family = socket.AF_INET, type = socket.SOCK_STREAM, ip: str = '10.83.2.1', port: int = 2000) -> None:
 		"""Constructor for Server
 		
 		Args:
@@ -28,10 +30,14 @@ class Server:
 		
 		if not ip:
 			self.ip = socket.gethostbyname(socket.gethostname())
+		else:
+			self.ip = ip
+		
+		self.port = port
 		
 		self.serverAddress: tuple = (self.ip, port)
 		self.serverSocket.bind(self.serverAddress)
-		logger.info(f'Socket bound to: {self.ip}')
+		logging.info(f'Socket bound to: {self.ip}:{self.port}')
 		
 		self.commSocket: socket.socket = None
 		self.commAddress: tuple = None
@@ -41,8 +47,11 @@ class Server:
 		
 		Tries to close connection if not already done
 		"""
-		self.serverSocket.close()
-		logger.info('Connection closed')
+		self.closeConnection()
+		try:
+			print('Connection closed')
+		except:
+			print('Connection already closed')
 		
 	def establishConnection(self):
 		"""Listens for and establishes connections
@@ -54,9 +63,16 @@ class Server:
 		
 		#TODO: try ergänzen
 		self.serverSocket.listen(1)
-		commSocket, commAddress = self.serverSocket.accept()
 		
-		logger.info(f'Connected to {commAddress[0]}:{commAddress[1]}')
+		while True:
+			commSocket, commAddress = self.serverSocket.accept()
+			
+			if commSocket and commAddress:
+				self.commSocket = commSocket
+				self.commAddress = commAddress
+				break
+		
+		logging.info(f'Connected to {commAddress[0]}:{commAddress[1]}')
 		
 		return commSocket, commAddress
 		
@@ -71,10 +87,10 @@ class Server:
 			self.commSocket = None
 			self.commAddress = None
 		
-			logger.info('Connection closed')
+			print('Connection closed')
 		
 		else:
-			logger.error('No connection established, cant be closed!')
+			print('No connection established, cant be closed!')
 		
 	def sendData(self, data: str) -> None:
 		"""Encodes and sends data to connected client.
@@ -89,7 +105,7 @@ class Server:
 			logging.info('Sending data')
 			
 		else:
-			logger.error('No connection established, sending not possible!')
+			logging.error('No connection established, sending not possible!')
 			
 	def receiveData(self, bytes: int) -> str:
 		"""Receives and decodes data from connected client.
@@ -99,9 +115,31 @@ class Server:
 
 		"""
 		if self.commSocket and self.commAddress:
-			logger.info('Receiving data')
+			logging.info('Receiving data')
 			return self.commSocket.recv(bytes).decode()
 		else:
-			logger.error('No connection established, receiving not possible!')
+			logging.error('No connection established, receiving not possible!')
 			return None
-		
+
+import numpy as np
+
+if __name__ == '__main__':
+    
+	logging.getLogger().setLevel(logging.INFO)
+	server = Server()
+	
+	commSocket, commAddress = server.establishConnection()
+
+	data = server.receiveData(1024)
+	
+	data = data[2:len(data)-1]
+	np_Temp = np.fromstring(data, dtype=np.float64, sep=",")
+	np_Tvec = np_Temp[0:3].copy().reshape(3,1)
+	np_Rvec = np_Temp[3:6].copy().reshape(3,1)
+	print(np_Temp)
+	server.sendData('1')
+	
+	data = server.receiveData(1024)
+	print(data)
+	server.sendData('1')
+	server.closeConnection()

@@ -25,7 +25,7 @@ class HandEyeCalibrator:
 	"""
 	
 	
-	def __init__(self, numberOfMeasurements: int = 20) -> None:
+	def __init__(self, numberOfMeasurements: int = 25) -> None:
 		"""Constructor for HandEyeCalibrator
 		
 			Args:
@@ -47,8 +47,8 @@ class HandEyeCalibrator:
 		self.tfBaseToWorld = RigidTransform(from_frame='base', to_frame='world')
 		self.tfGripperToCam = RigidTransform(from_frame='gripper', to_frame='cam')
 		
-		self.poseEstimator: pe.CharucoPoseEstimator = pe.CharucoPoseEstimator(showPoseEstimationCharuco=False)
-		self.tfDepthToWorld: RigidTransform = self.poseEstimator.getDepthToWorldTransform()
+		self.poseEstimator: pe.CharucoPoseEstimator = pe.CharucoPoseEstimator(depth=True)
+		self.tfDepthToWorld: RigidTransform = None
 		
 		self.server = Server.Server()
 		
@@ -75,70 +75,78 @@ class HandEyeCalibrator:
 			self.server.commSocket, self.server.commAddress = self.server.establishConnection()
 			
 			# Buffer variables
-			listRMatGripperToBase: list = []
-			listTVecGripperToBase: list = []
+			listRMatBaseToGripper: list = []
+			listTVecBaseToGripper: list = []
 			listRMatWorldToCamera: list = []
 			listTVecWorldToCamera: list = []
 			
 			for i in range(self.numberOfMeasurements):
 				
-				logging.info(f'Step {i+1} of {numberOfMeasurements}')
+				logging.info(f'Step {i+1} of {self.numberOfMeasurements}')
 				
 				# get the TCP-pose from the robot
-				gripperToBase = self.server.receiveData(1024)
-				gripperToBase = gripperToBase[2:len(gripperToBase)]
+				baseToGripper = self.server.receiveData(1024)
+				baseToGripper = baseToGripper[2:len(baseToGripper)]
 				
-				# str format is '(tVecX, tVecY, tVecZ, rVecX, rVecY, rVecZ)'
-				gripperToBase = np.fromstring(gripperToBase, dtype = np.float64, sep = ',')
-				rVecGripperToBase = gripperToBase[3:6].reshape(3,1)
-				tVecGripperToBase = gripperToBase[0:3].reshape(3,1)
+				# str format is 'p[tVecX, tVecY, tVecZ, rVecX, rVecY, rVecZ]'
+				baseToGripper = np.fromstring(baseToGripper, dtype = np.float64, sep = ',')
+				rVecBaseToGripper = baseToGripper[3:6].reshape(3,1)
+				tVecBaseToGripper = baseToGripper[0:3].reshape(3,1)
 				
 				# convert rotation vector to rotation matrix
-				rMatGripperToBase, _ = cv2.Rodrigues(rVecGripperToBase)
+				rMatBaseToGripper, _ = cv2.Rodrigues(rVecGripperToBase)
 				
-				logger.info('Gripper to base of robot transformation determined')
+				logging.info('Gripper to base of robot transformation determined')
+				logging.debug(f'Translation: {tVecGripperToBase}')
+				logging.debug(f'Rotation: {rMatGripperToBase}')
 				
 				# estimate camera pose with regards to charuco board (which is the world frame)
 				success, rMatWorldToCamera, tVecWorldToCamera = self.poseEstimator.estimatePose()
 				
 				# only save results of this step if the pose estimation of the camera was successful
 				if success:
-					logger.info('World to camera transformation determined')
-					loggin.info('Saving transformations')
+					logging.info('World to camera transformation determined')
+					logging.debug(f'Translation: {tVecWorldToCamera}')
+					logging.debug(f'Rotation: {rMatWorldToCamera}')
+					logging.info('Saving transformations')
 					
-					listRMatGripperToBase.append(rMatGripperToBase)
-					listTVecGripperToBase.append(tVecGripperToBase)
+					listRMatBaseToGripper.append(rMatBaseToGripper)
+					listTVecBaseToGripper.append(tVecBaseToGripper)
 					
 					listRMatWorldToCamera.append(rMatWorldToCamera)
 					listTVecWorldToCamera.append(tVecWorldToCamera)
 				else:
-					logger.error('Pose estimation of camera failed, skipping this step')
+					logging.error('Pose estimation of camera failed, skipping this step')
 				
 				# tell robot to approach next pose
+				input('press key to continue')
 				communication = 1
-				self.serverData.send(f'{communication}')
+				self.server.sendData(f'{communication}')
 			
 			# check if folder exists		
 			Path('handEyeCalibration/').mkdir(exist_ok=True)
 			
 			# save all determined poses
-			with open(f'handEyeCalibration/rMatGripperToBase.npy', 'wb') as f:
-				np.save(f, np.array(listRMatGripperToBase)) 
-			with open(f'handEyeCalibration/tVecGripperToBase.npy', 'wb') as f:
-				np.save(f, np.array(listTVecGripperToBase)) 
-			with open(f'handEyeCalibration/rMatWorldToCamera.npy', 'wb') as f:
+			with open('handEyeCalibration/rMatGripperToBase.npy', 'wb') as f:
+				np.save(f, np.array(listRMatBaseToGripper)) 
+			with open('handEyeCalibration/tVecGripperToBase.npy', 'wb') as f:
+				np.save(f, np.array(listTVecBaseToGripper)) 
+			with open('handEyeCalibration/rMatWorldToCamera.npy', 'wb') as f:
 				np.save(f, np.array(listRMatWorldToCamera)) 
-			with open(f'handEyeCalibration/tVecWorldToCamera.npy', 'wb') as f:
+			with open('handEyeCalibration/tVecWorldToCamera.npy', 'wb') as f:
 				np.save(f, np.array(listTVecWorldToCamera)) 
 				
 			logging.info('Calculating transformations from given poses')
 			
 			start = time.time()
 			
-			rMatBaseToWorld, tVecBaseToWorld, rMatGripperToCam, tVecGripperToCam = cv2.calibrateRobotWorldHandEye(np.array(listRMatGripperToBase), 
-																	np.array(listTVecGripperToBase),
-																	np.array(listRMatWorldToCamera),
-																	np.array(listTVecWorldToCamera))		
+			rMatBaseToWorld, tVecBaseToWorld, rMatGripperToCam, tVecGripperToCam = cv2.calibrateRobotWorldHandEye(np.array(listRMatWorldToCamera),
+																	np.array(listTVecWorldToCamera),
+																	np.array(listRMatBaseToGripper), 
+																	np.array(listTVecBaseToGripper),
+																	method = cv2.CALIB_ROBOT_WORLD_HAND_EYE_LI)
+																	
+																			
 			logging.info(f'Calculation took {time.time()-start} seconds')
 			
 			self.tfBaseToWorld: RigidTransform = RigidTransform(rotation = rMatBaseToWorld, translation = tVecBaseToWorld, from_frame = 'base', to_frame = 'world')
@@ -171,13 +179,13 @@ class HandEyeCalibrator:
 		
 			if Path(path + 'baseToWorld.tf').exists() and Path(path + 'gripperToCam.tf').exists():
 			
-				logger.info('Loading...')
+				logging.info('Loading...')
 				self.tfBaseToWorld = RigidTransform.load('handEyeCalibration/baseToWorld.tf')
 				self.tfGripperToCam = RigidTransform.load('handEyeCalibration/gripperToCam.tf')
-				logger.info('Hand-Eye-Calibration loaded')
+				logging.info('Hand-Eye-Calibration loaded')
 			
 		else:
-			logger.warning('No saved Hand-Eye-Calibration found')
+			logging.warning('No saved Hand-Eye-Calibration found')
 			
 	def graspTransformer(self, tfGraspToDepth: RigidTransform):
 		"""Transforms a grasp to the base of the robot.
@@ -198,10 +206,11 @@ class HandEyeCalibrator:
 		#TODO: determine if the tfGraspToBase needs to be inversed
 		
 		if (self.tfBaseToWorld.rotation == np.eye(3)).all():
-			logger.warning('Base to World seems to be default matrix')
+			logging.warning('Base to World seems to be default matrix')
 		
+		self.tfDepthToWorld = self.poseEstimator.getDepthToWorldTransform()
 		tfGraspToBase =  self.tfBaseToWorld.inverse() * self.tfDepthToWorld * tfGraspToDepth 
-		logger.info(tfGraspToBase)
+		logging.info(tfGraspToBase)
 		
 		return tfGraspToBase
 			
@@ -214,7 +223,7 @@ if __name__ == '__main__':
 			root_logger.removeHandler(hdlr)
 	
 	logging.root.name = 'Robotiklabor'
-	logging.getLogger().setLevel(logging.INFO)
+	logging.getLogger().setLevel(logging.DEBUG)
 	
 	handler = colorlog.StreamHandler()
 	formatter = colorlog.ColoredFormatter("%(purple)s%(name)-10s "
@@ -232,8 +241,16 @@ if __name__ == '__main__':
 	logger = colorlog.getLogger()
 	logger.addHandler(handler)
 	
-	hec = HandEyeCalibrator()
-	hec.graspTransformer(RigidTransform(from_frame='grasp', to_frame='depth'))			
-		
-		
+	#hec = HandEyeCalibrator()
+	#hec.graspTransformer(RigidTransform(from_frame='grasp', to_frame='depth'))	
+	#hec.calibrateHandEye()		
+	
+	listRMatBaseToGripper = np.load('handEyeCalibration/rMatBaseToWorld.npy')
+	listTVecBaseToGripper = np.load('handEyeCalibration/tVecBaseToWorld.npy')
+	listRMatWorldToCamera = np.load('handEyeCalibration/rMatWorldToCamera.npy')
+	listTVecWorldToCamera = np.load('handEyeCalibration/tVecWorldToCamera.npy')
+	rMatBaseToWorld, tVecBaseToWorld, rMatGripperToCam, tVecGripperToCam = cv2.calibrateRobotWorldHandEye(np.array(listRMatWorldToCamera),
+																	np.array(listTVecWorldToCamera),
+																	np.array(listRMatBaseToGripper), 
+																	np.array(listTVecBaseToGripper))	
 	

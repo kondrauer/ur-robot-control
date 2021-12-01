@@ -45,7 +45,7 @@ class CharucoPoseEstimator:
 		self.charucoBoard = cv2.aruco.CharucoBoard_create(self.squareX, self.squareY, self.squareLength, self.squareWidth, self.arucoDict)
 		self.boardSize = self.charucoBoard.getChessboardSize()
 		
-		self.realsense = RealsenseInterface(depth=depth)
+		self.realsense = RealsenseInterface(align=False, depth=depth)
 		self.realsense.start()
 	
 	def estimatePose(self, correction_z: int = 0.035, debug: bool = False):
@@ -104,7 +104,7 @@ class CharucoPoseEstimator:
 						logging.info(f'Distance: {np.linalg.norm(translationVectorWorldToCamera)}')
 					
 						cv2.imshow('Estimated Pose', colorArray)
-						key = cv2.waitKey(0)
+						cv2.waitKey(0)
 						
 					return True, rotationMatrixWorldToCamera, translationVectorWorldToCamera
 					
@@ -127,7 +127,7 @@ class CharucoPoseEstimator:
 		
 			input('Press enter to capture next camera pose...')
 			
-			success, rotationMatrix, translationVector = cpe.estimatePose()
+			success, rotationMatrix, translationVector = self.estimatePose()
 			
 			if success:
 				rMat.append(rotationMatrix)
@@ -184,11 +184,12 @@ class CharucoPoseEstimator:
 		if tfDepthToWorld:
 			
 			tfDepthToWorld.save(path)	
-			logger.info('Saved Depth to World transform to ' + path)	
+			logging.info('Saved Depth to World transform to ' + path)	
 		
 if __name__ == '__main__':
-
+	print('test')
+	logging.getLogger().setLevel(logging.INFO)
 	cpe = CharucoPoseEstimator(depth=True)
-	#_, rMat, tVec = cpe.estimatePose(debug=True)
+	_, rMat, tVec = cpe.estimatePose(debug=True)
 	
-	cpe.savePoseAsDepthToWorldTransform()	
+# 	cpe.savePoseAsDepthToWorldTransform()	

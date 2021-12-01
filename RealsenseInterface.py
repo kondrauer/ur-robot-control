@@ -164,12 +164,15 @@ class RealsenseInterface:
 		self.pipeline.stop()
 		
 		# create context object and query devices connected to pc
-		ctx = rs.context()
-		devices = ctx.query_devices()
-		
-		# reset every connected realsense device (typically only 1)
-		for dev in devices:
-			dev.hardware_reset()
+		try:
+			ctx = rs.context()
+			devices = ctx.query_devices()
+			
+			# reset every connected realsense device (typically only 1)
+			for dev in devices:
+				dev.hardware_reset()
+		except TypeError:
+			print('Camera already shut down')
 		
 	def start(self, preprocessing: bool = False) -> None:
 		"""Setup and start the cameras pipeline.
@@ -415,7 +418,6 @@ class RealsenseInterface:
 
 		"""
 		
-		#if self.align:
 		while True:
 	
 			self.getFrames(filter = filter)
@@ -442,8 +444,6 @@ class RealsenseInterface:
 			if key & 0xFF == ord('q') or key == 27:
 				cv2.destroyAllWindows()
 				break
-		#else:
-		#	logging.error('Streams need to be aligned for the viewer to work!')
 	
 	def saveImageSet(self, iterationsDilation: int = 3, filter: bool = False) -> None:
 		"""Saves an image set for later use with a gqcnn.
@@ -506,9 +506,10 @@ class RealsenseInterface:
 if __name__ == '__main__':
 	
 	logging.getLogger().setLevel(logging.INFO)
-	realsense = RealsenseInterface(align=True, decimation=True)
+	realsense = RealsenseInterface(align=True, decimation=False)
 	realsense.start()
 	
 	#realsense.printIntrinsics()
-	realsense.openViewer(filter=True)
-	realsense.saveImageSet(iterationsDilation = 0, filter=True)	
+	realsense.printExtrinsics()
+	#realsense.openViewer(filter=True)
+	#realsense.saveImageSet(iterationsDilation = 1, filter=True)	
