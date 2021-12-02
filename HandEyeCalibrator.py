@@ -45,7 +45,7 @@ class HandEyeCalibrator:
 			self.numberOfMeasurements = numberOfMeasurements
 		
 		self.tfBaseToWorld = RigidTransform(from_frame='base', to_frame='world')
-		self.tfGripperToCam = RigidTransform(from_frame='gripper', to_frame='cam')
+		self.tfCamToGripper = RigidTransform(from_frame='gripper', to_frame='cam')
 		
 		self.poseEstimator: pe.CharucoPoseEstimator = pe.CharucoPoseEstimator(depth=True)
 		self.tfDepthToWorld: RigidTransform = None
@@ -84,21 +84,25 @@ class HandEyeCalibrator:
 				
 				logging.info(f'Step {i+1} of {self.numberOfMeasurements}')
 				
-				# get the TCP-pose from the robot
-				baseToGripper = self.server.receiveData(1024)
-				baseToGripper = baseToGripper[2:len(baseToGripper)]
+				# get the TCP-pose from the robot from gripper to base(!!!)
+				gripperToBase = self.server.receiveData(1024)
+				gripperToBase = gripperToBase[2:len(gripperToBase)]
 				
 				# str format is 'p[tVecX, tVecY, tVecZ, rVecX, rVecY, rVecZ]'
-				baseToGripper = np.fromstring(baseToGripper, dtype = np.float64, sep = ',')
-				rVecBaseToGripper = baseToGripper[3:6].reshape(3,1)
-				tVecBaseToGripper = baseToGripper[0:3].reshape(3,1)
+				gripperToBase = np.fromstring(gripperToBase, dtype = np.float64, sep = ',')
+				rVecGripperToBase = gripperToBase[3:6].reshape(3,1)
+				tVecGripperToBase = gripperToBase[0:3].reshape(3,1)
 				
 				# convert rotation vector to rotation matrix
-				rMatBaseToGripper, _ = cv2.Rodrigues(rVecGripperToBase)
+				rMatGripperToBase, _ = cv2.Rodrigues(rVecGripperToBase)
 				
-				logging.info('Gripper to base of robot transformation determined')
-				logging.debug(f'Translation: {tVecGripperToBase}')
-				logging.debug(f'Rotation: {rMatGripperToBase}')
+				# invert to get Base to Gripper
+				rMatBaseToGripper = R.T
+				tVecBaseToGripper = -R_b2g @ t
+								
+				logging.info('Bast to gripper of robot transformation determined')
+				logging.debug(f'Translation: {tVecBaseToGripper}')
+				logging.debug(f'Rotation: {rMatBaseToGripper}')
 				
 				# estimate camera pose with regards to charuco board (which is the world frame)
 				success, rMatWorldToCamera, tVecWorldToCamera = self.poseEstimator.estimatePose()
@@ -140,7 +144,7 @@ class HandEyeCalibrator:
 			
 			start = time.time()
 			
-			rMatBaseToWorld, tVecBaseToWorld, rMatGripperToCam, tVecGripperToCam = cv2.calibrateRobotWorldHandEye(np.array(listRMatWorldToCamera),
+			rMatBaseToWorld, tVecBaseToWorld, rMatCamToGripper, tVecCamToGripper = cv2.calibrateRobotWorldHandEye(np.array(listRMatWorldToCamera),
 																	np.array(listTVecWorldToCamera),
 																	np.array(listRMatBaseToGripper), 
 																	np.array(listTVecBaseToGripper),
@@ -149,11 +153,20 @@ class HandEyeCalibrator:
 																			
 			logging.info(f'Calculation took {time.time()-start} seconds')
 			
+			logging.debug(rMatBaseToWorld)
+			logging.debug(tVecBaseToWorld)
+			logging.debug(f'Distance Base To World: {np.linalg.norm(tVecBaseToWorld)}')
+			logging.debug(rMatCamToGripper)
+			logging.debug(tVecCamToGripper)
+			logging.debug(f'Distance Gripper To Cam: {np.linalg.norm(tVecGripperToCam)}')
+			
 			self.tfBaseToWorld: RigidTransform = RigidTransform(rotation = rMatBaseToWorld, translation = tVecBaseToWorld, from_frame = 'base', to_frame = 'world')
-			self.tfGripperToCam: RigidTransform = RigidTransform(rotation = rMatGripperToCam, translation = tVecGripperToCam, from_frame = 'gripper', to_frame = 'cam')
+			self.tfCamToGripper: RigidTransform = RigidTransform(rotation = rMatGripperToCam, translation = tVecCamToGripper, from_frame = 'cam', to_frame = 'gripper')
 																		 
 			self.tfBaseToWorld.save('handEyeCalibration/baseToWorld.tf')
-			self.tfGripperToCam.save('handEyeCalibration/gripperToCam.tf')
+			self.tfCamToGripper.save('handEyeCalibration/camToGripper.tf')
+			
+
 			
 			logging.info('Saved calibration to file!')
 			
@@ -181,7 +194,7 @@ class HandEyeCalibrator:
 			
 				logging.info('Loading...')
 				self.tfBaseToWorld = RigidTransform.load('handEyeCalibration/baseToWorld.tf')
-				self.tfGripperToCam = RigidTransform.load('handEyeCalibration/gripperToCam.tf')
+				self.tfCamToGripper = RigidTransform.load('handEyeCalibration/gripperToCam.tf')
 				logging.info('Hand-Eye-Calibration loaded')
 			
 		else:
