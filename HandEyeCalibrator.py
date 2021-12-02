@@ -45,7 +45,7 @@ class HandEyeCalibrator:
 			self.numberOfMeasurements = numberOfMeasurements
 		
 		self.tfBaseToWorld = RigidTransform(from_frame='base', to_frame='world')
-		self.tfCamToGripper = RigidTransform(from_frame='gripper', to_frame='cam')
+		self.tfGripperToCam = RigidTransform(from_frame='gripper', to_frame='cam')
 		
 		self.poseEstimator: pe.CharucoPoseEstimator = pe.CharucoPoseEstimator(depth=True)
 		self.tfDepthToWorld: RigidTransform = None
@@ -144,7 +144,7 @@ class HandEyeCalibrator:
 			
 			start = time.time()
 			
-			rMatBaseToWorld, tVecBaseToWorld, rMatCamToGripper, tVecCamToGripper = cv2.calibrateRobotWorldHandEye(np.array(listRMatWorldToCamera),
+			rMatBaseToWorld, tVecBaseToWorld, rMatGripperToCam, tVecGripperToCam = cv2.calibrateRobotWorldHandEye(np.array(listRMatWorldToCamera),
 																	np.array(listTVecWorldToCamera),
 																	np.array(listRMatBaseToGripper), 
 																	np.array(listTVecBaseToGripper),
@@ -156,15 +156,15 @@ class HandEyeCalibrator:
 			logging.debug(rMatBaseToWorld)
 			logging.debug(tVecBaseToWorld)
 			logging.debug(f'Distance Base To World: {np.linalg.norm(tVecBaseToWorld)}')
-			logging.debug(rMatCamToGripper)
-			logging.debug(tVecCamToGripper)
+			logging.debug(rMatGripperToCam)
+			logging.debug(tVecGripperToCam)
 			logging.debug(f'Distance Gripper To Cam: {np.linalg.norm(tVecGripperToCam)}')
 			
 			self.tfBaseToWorld: RigidTransform = RigidTransform(rotation = rMatBaseToWorld, translation = tVecBaseToWorld, from_frame = 'base', to_frame = 'world')
-			self.tfCamToGripper: RigidTransform = RigidTransform(rotation = rMatGripperToCam, translation = tVecCamToGripper, from_frame = 'cam', to_frame = 'gripper')
+			self.tfCamToGripper: RigidTransform = RigidTransform(rotation = rMatGripperToCam, translation = tVecCamToGripper, from_frame = 'gripper', to_frame = 'cam')
 																		 
 			self.tfBaseToWorld.save('handEyeCalibration/baseToWorld.tf')
-			self.tfCamToGripper.save('handEyeCalibration/camToGripper.tf')
+			self.tfGripperToCam.save('handEyeCalibration/gripperToCam.tf')
 			
 
 			
@@ -194,7 +194,7 @@ class HandEyeCalibrator:
 			
 				logging.info('Loading...')
 				self.tfBaseToWorld = RigidTransform.load('handEyeCalibration/baseToWorld.tf')
-				self.tfCamToGripper = RigidTransform.load('handEyeCalibration/gripperToCam.tf')
+				self.tfGripperToCam = RigidTransform.load('handEyeCalibration/gripperToCam.tf')
 				logging.info('Hand-Eye-Calibration loaded')
 			
 		else:
