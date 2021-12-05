@@ -198,7 +198,7 @@ class RealsenseInterface:
 				for i in range(int(preset_range.max)):
 					visulpreset = depth_sensor.get_option_value_description(rs.option.visual_preset,i)
 					#print('%02d: %s' %(i,visulpreset))
-					if visulpreset == "Low Ambient Light":
+					if visulpreset == "Short Range":
 						depth_sensor.set_option(rs.option.visual_preset, i)
 				
 				# wait some time for auto exposure
@@ -209,6 +209,8 @@ class RealsenseInterface:
 				self.getProfiles()
 				self.getIntrinsics()
 				
+				
+
 				# some more setup if wanted
 				if preprocessing:
 					depth_sensor: rs.depth_sensor = self.profile.get_device().first_depth_sensor()
@@ -429,6 +431,13 @@ class RealsenseInterface:
 				# apply colormap to depth frame so it looks pretty
 				coloredDepth = cv2.applyColorMap(cv2.convertScaleAbs(depthArray, alpha=255/depthArray.max()), cv2.COLORMAP_JET)
 			
+			colorizer = rs.colorizer()
+			colorizer.set_option(rs.option.visual_preset, 1) # 0=Dynamic, 1=Fixed, 2=Near, 3=Far
+			colorizer.set_option(rs.option.min_distance, 0.2)
+			colorizer.set_option(rs.option.max_distance, 0.8)
+			
+			coloredDepth = np.asanyarray(colorizer.colorize(self.depthFrame).get_data())
+			
 			# stack the pictures next to each other
 			#images = np.hstack((colorImage, coloredDepth))
 			
@@ -492,7 +501,7 @@ class RealsenseInterface:
 		mask = cv2.inRange(colorArray[midY-100:midY+100, midX-100:midX+100], lowerGreen, upperGreen)
 		
 		# dilation and median blur to smooth mask and fill holes
-		kernel = np.ones((3,3), np.uint8)
+		kernel = np.ones((2,2), np.uint8)
 		mask = cv2.dilate(mask, kernel, iterations = iterationsDilation)
 		mask = cv2.medianBlur(mask, 3)
 		
@@ -510,6 +519,6 @@ if __name__ == '__main__':
 	realsense.start()
 	
 	#realsense.printIntrinsics()
-	realsense.printExtrinsics()
-	#realsense.openViewer(filter=True)
-	#realsense.saveImageSet(iterationsDilation = 1, filter=True)	
+# 	realsense.printExtrinsics()
+# 	realsense.openViewer(filter=True)
+	realsense.saveImageSet(iterationsDilation = 0, filter=True)	

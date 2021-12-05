@@ -97,8 +97,8 @@ class HandEyeCalibrator:
 				rMatGripperToBase, _ = cv2.Rodrigues(rVecGripperToBase)
 				
 				# invert to get Base to Gripper
-				rMatBaseToGripper = R.T
-				tVecBaseToGripper = -R_b2g @ t
+				rMatBaseToGripper = rMatGripperToBase.T
+				tVecBaseToGripper = -rMatBaseToGripper @ tVecGripperToBase
 								
 				logging.info('Bast to gripper of robot transformation determined')
 				logging.debug(f'Translation: {tVecBaseToGripper}')
@@ -123,7 +123,7 @@ class HandEyeCalibrator:
 					logging.error('Pose estimation of camera failed, skipping this step')
 				
 				# tell robot to approach next pose
-				input('press key to continue')
+				#input('press key to continue')
 				communication = 1
 				self.server.sendData(f'{communication}')
 			
@@ -161,7 +161,7 @@ class HandEyeCalibrator:
 			logging.debug(f'Distance Gripper To Cam: {np.linalg.norm(tVecGripperToCam)}')
 			
 			self.tfBaseToWorld: RigidTransform = RigidTransform(rotation = rMatBaseToWorld, translation = tVecBaseToWorld, from_frame = 'base', to_frame = 'world')
-			self.tfCamToGripper: RigidTransform = RigidTransform(rotation = rMatGripperToCam, translation = tVecCamToGripper, from_frame = 'gripper', to_frame = 'cam')
+			self.tfCamToGripper: RigidTransform = RigidTransform(rotation = rMatGripperToCam, translation = tVecGripperToCam, from_frame = 'gripper', to_frame = 'cam')
 																		 
 			self.tfBaseToWorld.save('handEyeCalibration/baseToWorld.tf')
 			self.tfGripperToCam.save('handEyeCalibration/gripperToCam.tf')
@@ -221,11 +221,31 @@ class HandEyeCalibrator:
 		if (self.tfBaseToWorld.rotation == np.eye(3)).all():
 			logging.warning('Base to World seems to be default matrix')
 		
-		self.tfDepthToWorld = self.poseEstimator.getDepthToWorldTransform()
+		self.tfDepthToWorld = RigidTransform.load('handEyeCalibration/tfdepthToWorld.tf')
 		tfGraspToBase =  self.tfBaseToWorld.inverse() * self.tfDepthToWorld * tfGraspToDepth 
 		logging.info(tfGraspToBase)
 		
 		return tfGraspToBase
+	
+	def moveToPoint(self, tfPointToMove: RigidTransform):
+		
+# 		self.server.commSocket, self.server.commAddress = self.server.establishConnection()
+		
+		#rMatXAxis = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+		#tfPointToMove.rotation = np.transpose(rMatXAxis @ np.transpose(tfPointToMove.rotation))
+		
+		if tfPointToMove.translation[2] < 0.08:
+			tfPointToMove.translation[2] = 0.08
+		
+		strTVecMarkerToBase = str(tfPointToMove.translation[0])+","+str(tfPointToMove.translation[1])+","+str(tfPointToMove.translation[2])
+		strRVecMarkerToBase = str(tfPointToMove.axis_angle[0])+","+str(tfPointToMove.axis_angle[1])+","+str(tfPointToMove.axis_angle[2])
+		strMarkerToBase = "( " + strTVecMarkerToBase + "," + strRVecMarkerToBase + " )"
+		
+		np_Rvec_MarkerToBase, _ = cv2.Rodrigues(tfPointToMove.rotation)
+# 		self.server.sendData(strMarkerToBase)
+		logging.debug(strMarkerToBase)
+		logging.debug(tfPointToMove.euler_angles)
+		logging.debug(np_Rvec_MarkerToBase)
 			
 			
 if __name__ == '__main__':
@@ -254,16 +274,14 @@ if __name__ == '__main__':
 	logger = colorlog.getLogger()
 	logger.addHandler(handler)
 	
-	#hec = HandEyeCalibrator()
+	hec = HandEyeCalibrator()
 	#hec.graspTransformer(RigidTransform(from_frame='grasp', to_frame='depth'))	
-	#hec.calibrateHandEye()		
+# 	hec.calibrateHandEye()
 	
-	listRMatBaseToGripper = np.load('handEyeCalibration/rMatBaseToWorld.npy')
-	listTVecBaseToGripper = np.load('handEyeCalibration/tVecBaseToWorld.npy')
-	listRMatWorldToCamera = np.load('handEyeCalibration/rMatWorldToCamera.npy')
-	listTVecWorldToCamera = np.load('handEyeCalibration/tVecWorldToCamera.npy')
-	rMatBaseToWorld, tVecBaseToWorld, rMatGripperToCam, tVecGripperToCam = cv2.calibrateRobotWorldHandEye(np.array(listRMatWorldToCamera),
-																	np.array(listTVecWorldToCamera),
-																	np.array(listRMatBaseToGripper), 
-																	np.array(listTVecBaseToGripper))	
+# 	hec.poseEstimator.savePoseAsDepthToWorldTransform(path='handEyeCalibration/tfdepthToWorld.tf')
+	
+	#hec.moveToPoint(hec.tfBaseToWorld.inverse())
+	#hec.poseEstimator.realsense.saveImageSet(iterationsDilation = 1, filter=True)	
+	#hec.poseEstimator.realsense.openViewer(filter=True)
+		
 	

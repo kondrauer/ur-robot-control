@@ -48,10 +48,6 @@ class Server:
 		Tries to close connection if not already done
 		"""
 		self.closeConnection()
-		try:
-			print('Connection closed')
-		except:
-			print('Connection already closed')
 		
 	def establishConnection(self):
 		"""Listens for and establishes connections
