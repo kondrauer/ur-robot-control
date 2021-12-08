@@ -23,7 +23,11 @@ from gqcnn.grasping import (RobustGraspingPolicy,
                             FullyConvolutionalGraspingPolicySuction)
 from gqcnn.utils import GripperMode
 
+from visualization import Visualizer2D as vis
+
+from RealsenseInterface import RealsenseInterface
 from HandEyeCalibrator import HandEyeCalibrator
+#TODO: make paths relative (model and pictures in ur robot control)
 
 if __name__ == "__main__":
 	root_logger = logging.getLogger()
@@ -90,12 +94,16 @@ if __name__ == "__main__":
     # Setup sensor.
 	camera_intr = CameraIntrinsics.load('C:/Users/Student/Desktop/gqcnn-master/data/calib/realsense/realsense.intr')
 	
+	re = RealsenseInterface(align=True, decimation=False)
+	re.start()
+	index = re.saveImageSet(iterationsDilation = 0, filter=True)
+	
 	# Read images.
-	depth_data = np.load('C:/Users/Student/Desktop/gqcnn-master/data/examples/realsense/depth_13.npy')
+	depth_data = np.load(f'img/depth_{index}.npy')
 	depth_im = DepthImage(depth_data, frame=camera_intr.frame)
 	color_im = ColorImage(np.zeros([depth_im.height, depth_im.width,3]).astype(np.uint8),frame=camera_intr.frame)
 	
-	segmask = BinaryImage.open('C:/Users/Student/Desktop/gqcnn-master/data/examples/realsense/segmask_13.png')
+	segmask = BinaryImage.open(f'img/segmask_{index}.png')
 	depth_im = depth_im.inpaint(rescale_factor=inpaint_rescale_factor)
 	
 	rgbd_im = RgbdImage.from_color_and_depth(color_im, depth_im)
@@ -115,5 +123,16 @@ if __name__ == "__main__":
 	policy_start = time.time()
 	action = policy(state)
 	logger.info("Planning took %.3f sec" % (time.time() - policy_start))
+	
+	if policy_config["vis"]["final_grasp"]:
+		vis.figure(size=(10, 10))
+		vis.imshow(rgbd_im.depth,
+			       vmin=policy_config["vis"]["vmin"],
+				   vmax=policy_config["vis"]["vmax"])
+		vis.grasp(action.grasp, scale=2.5, show_center=False, show_axis=True)
+		vis.title("Planned grasp at depth {0:.3f}m with Q={1:.3f}".format(
+			action.grasp.depth, action.q_value))
+		vis.show()
+	
 	tfGraspToBase = hec.graspTransformer(action.grasp.pose())
 	hec.moveToPoint(tfGraspToBase)

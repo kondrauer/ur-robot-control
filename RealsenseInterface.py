@@ -475,7 +475,6 @@ class RealsenseInterface:
 		
 		# turn color frame to array and save it
 		colorArray = np.array(self.colorFrame.get_data())
-		cv2.imwrite(f'img/color_{pngCount}.png', colorArray)
 		
 		# turn depth frame into array and apply color map
 		depthArray = np.array(self.depthFrame.get_data(), dtype=np.float32)
@@ -496,9 +495,12 @@ class RealsenseInterface:
 		midX = int(colorArray.shape[1]/2)
 		midY = int(colorArray.shape[0]/2)
 		
+		colorArrayToSave = cv2.rectangle(colorArray.copy(), (midX-150, midY-150), (midX+150, midY+150), color=(0,0,255), thickness=2)
+		cv2.imwrite(f'img/color_{pngCount}.png', colorArrayToSave)
+		
 		# mask around the middle of the picture, makes it easier if the table is not filling the whole picture
 		# can be altered if the whole background is green
-		mask = cv2.inRange(colorArray[midY-100:midY+100, midX-100:midX+100], lowerGreen, upperGreen)
+		mask = cv2.inRange(colorArray[midY-150:midY+150, midX-150:midX+150], lowerGreen, upperGreen)
 		
 		# dilation and median blur to smooth mask and fill holes
 		kernel = np.ones((2,2), np.uint8)
@@ -507,10 +509,12 @@ class RealsenseInterface:
 		
 		# close any remaining holes by just ignoring them if they are to far from the center of the picture
 		binary = np.zeros(colorArray.shape[:2])
-		binary[midY-100:midY+100, midX-100:midX+100] = ~mask
+		binary[midY-150:midY+150, midX-150:midX+150] = ~mask
 		
 		binary = cv2.resize(binary, (depthArray.shape[1], depthArray.shape[0]))
 		cv2.imwrite(f'img/segmask_{pngCount}.png', binary)
+		
+		return pngCount
 				
 if __name__ == '__main__':
 	

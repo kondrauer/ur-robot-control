@@ -190,6 +190,7 @@ if __name__ == '__main__':
 	print('test')
 	logging.getLogger().setLevel(logging.INFO)
 	cpe = CharucoPoseEstimator(depth=True)
-	_, rMat, tVec = cpe.estimatePose(debug=True)
+	_, rMat, tVec = cpe.estimatePose(debug=True, correction_z = 0)
 	
-# 	cpe.savePoseAsDepthToWorldTransform()	
+ 	# cpe.savePoseAsDepthToWorldTransform()	
+	 

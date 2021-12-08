@@ -131,9 +131,9 @@ class HandEyeCalibrator:
 			Path('handEyeCalibration/').mkdir(exist_ok=True)
 			
 			# save all determined poses
-			with open('handEyeCalibration/rMatGripperToBase.npy', 'wb') as f:
+			with open('handEyeCalibration/rMatBaseToGripper.npy', 'wb') as f:
 				np.save(f, np.array(listRMatBaseToGripper)) 
-			with open('handEyeCalibration/tVecGripperToBase.npy', 'wb') as f:
+			with open('handEyeCalibration/tVecBaseToGripper.npy', 'wb') as f:
 				np.save(f, np.array(listTVecBaseToGripper)) 
 			with open('handEyeCalibration/rMatWorldToCamera.npy', 'wb') as f:
 				np.save(f, np.array(listRMatWorldToCamera)) 
@@ -148,7 +148,7 @@ class HandEyeCalibrator:
 																	np.array(listTVecWorldToCamera),
 																	np.array(listRMatBaseToGripper), 
 																	np.array(listTVecBaseToGripper),
-																	method = cv2.CALIB_ROBOT_WORLD_HAND_EYE_LI)
+																	method = cv2.CALIB_ROBOT_WORLD_HAND_EYE_SHAH)
 																	
 																			
 			logging.info(f'Calculation took {time.time()-start} seconds')
@@ -229,23 +229,44 @@ class HandEyeCalibrator:
 	
 	def moveToPoint(self, tfPointToMove: RigidTransform):
 		
-# 		self.server.commSocket, self.server.commAddress = self.server.establishConnection()
+		self.server.commSocket, self.server.commAddress = self.server.establishConnection()
 		
-		#rMatXAxis = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
-		#tfPointToMove.rotation = np.transpose(rMatXAxis @ np.transpose(tfPointToMove.rotation))
+# 		rMatXAxis = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+# 		tfPointToMove.rotation = np.transpose(rMatXAxis @ np.transpose(tfPointToMove.rotation))
+# 		tfPointToMove.rotation = rMatXAxis @ tfPointToMove.rotation
 		
-		if tfPointToMove.translation[2] < 0.08:
-			tfPointToMove.translation[2] = 0.08
+# 		tfPointToMove.translation *= 1000
+# 		logging.debug(tfPointToMove.matrix)
+
+		if tfPointToMove.translation[2] < 0.1:
+			tfPointToMove.translation[2] = 0.1
+		
+		rotYAxis90 = np.array([[0, 0, -1],
+ 						       [0, 1, 0], 
+							   [1, 0, 0]], dtype=np.float32)
+		
+		rotZAxis180 = np.array([[-1, 0, 0],
+						        [0, -1, 0], 
+								[0, 0, 1]], dtype=np.float32)
+
+		tfPointToMove.rotation = np.transpose(rotYAxis90 @ np.transpose(tfPointToMove.rotation))
+		tfPointToMove.rotation = np.transpose(rotZAxis180 @ np.transpose(tfPointToMove.rotation))
+# 		tfPointToMove.translation[0] = -tfPointToMove.translation[0]
+
+		tfPointToMove.translation[1] += 0.0675
 		
 		strTVecMarkerToBase = str(tfPointToMove.translation[0])+","+str(tfPointToMove.translation[1])+","+str(tfPointToMove.translation[2])
 		strRVecMarkerToBase = str(tfPointToMove.axis_angle[0])+","+str(tfPointToMove.axis_angle[1])+","+str(tfPointToMove.axis_angle[2])
 		strMarkerToBase = "( " + strTVecMarkerToBase + "," + strRVecMarkerToBase + " )"
 		
-		np_Rvec_MarkerToBase, _ = cv2.Rodrigues(tfPointToMove.rotation)
-# 		self.server.sendData(strMarkerToBase)
 		logging.debug(strMarkerToBase)
-		logging.debug(tfPointToMove.euler_angles)
-		logging.debug(np_Rvec_MarkerToBase)
+		self.server.sendData(strMarkerToBase)
+
+		#logging.debug(tfPointToMove.euler_angles)
+		#logging.debug(np_Rvec_MarkerToBase)
+		
+
+		print(tfPointToMove.matrix)
 			
 			
 if __name__ == '__main__':
@@ -280,7 +301,7 @@ if __name__ == '__main__':
 	
 # 	hec.poseEstimator.savePoseAsDepthToWorldTransform(path='handEyeCalibration/tfdepthToWorld.tf')
 	
-	#hec.moveToPoint(hec.tfBaseToWorld.inverse())
+	hec.moveToPoint(hec.tfBaseToWorld.inverse())
 	#hec.poseEstimator.realsense.saveImageSet(iterationsDilation = 1, filter=True)	
 	#hec.poseEstimator.realsense.openViewer(filter=True)
 		
