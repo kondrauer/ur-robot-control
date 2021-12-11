@@ -48,7 +48,7 @@ class CharucoPoseEstimator:
 		self.realsense = RealsenseInterface(align=False, depth=depth)
 		self.realsense.start()
 	
-	def estimatePose(self, correction_z: int = 0.035, debug: bool = False):
+	def estimatePose(self, correction_z: float = 0.05, debug: bool = False):
 		"""Estimates the camera pose with regards to a charuco board
 		
 		Args:
@@ -153,21 +153,46 @@ class CharucoPoseEstimator:
 			
 		"""	
 			
-		success, rMatWorldToCamera, tVecWorldToCamera = self.estimatePose(debug=debug, correction_z = 0.050)
+		success, rMatWorldToCamera, tVecWorldToCamera = self.estimatePose(debug=debug)
 		
 		if success:
 			
 			tfWorldToCamera = RigidTransform(rotation = rMatWorldToCamera, translation = tVecWorldToCamera, from_frame = 'world', to_frame = 'realsense_color')
-			tfCameraToDepth = RigidTransform(rotation = self.realsense.depthToColorRotation, translation = self.realsense.depthToColorTranslation, 
-								from_frame = 'realsense_color', to_frame = 'realsense_depth')
+			tfDepthToCamera = RigidTransform(rotation = self.realsense.depthToColorRotation, translation = self.realsense.depthToColorTranslation, 
+								from_frame = 'realsense_depth', to_frame = 'realsense_color')
 								
-			tfWorldToDepth = tfCameraToDepth * tfWorldToCamera
-			tfDepthToWorld = tfWorldToDepth.inverse()
+			tfDepthToWorld =  tfWorldToCamera.inverse() * tfDepthToCamera
 			
 			if debug:
 				logging.info(tfDepthToWorld)
 			
 			return tfDepthToWorld
+		else:
+			logging.error('Failed to estimate pose, try again')
+			return None
+		
+	def getWorldToCameraTransform(self, debug: bool = False) -> RigidTransform:
+		"""Computes transform from depth-frame of camera to world-frame
+		
+		Args:
+			debug (bool): shows information about computed transformations if true	
+			
+		Returns:
+			
+			RigidTransform: Transformation from depth to world
+			
+		"""	
+			
+		success, rMatWorldToCamera, tVecWorldToCamera = self.estimatePose(debug=debug)
+		
+		if success:
+			
+			tfWorldToCamera = RigidTransform(rotation = rMatWorldToCamera, translation = tVecWorldToCamera, from_frame = 'world', to_frame = 'cam')
+			
+			if debug:
+				logging.info(tfWorldToCamera)
+			
+			return tfWorldToCamera
 		else:
 			logging.error('Failed to estimate pose, try again')
 			return None
@@ -184,13 +209,27 @@ class CharucoPoseEstimator:
 		if tfDepthToWorld:
 			
 			tfDepthToWorld.save(path)	
-			logging.info('Saved Depth to World transform to ' + path)	
+			logging.info('Saved Depth to World transform to ' + path)
+	
+	def savePoseAsWorldToCameraTransform(self, path: str = '/media/max/gqcnn/gqcnn/data/calib/realsense/realsense_to_world.tf'):
+		"""Saves current pose as depth to world transform for usage with gqcnn package
+		
+		Args:
+			path (str): path to save the transform to
+		"""	
+			
+		tfWorldToCamera = self.getWorldToCameraTransform()
+		
+		if tfWorldToCamera:
+			
+			tfWorldToCamera.save(path)	
+			logging.info('Saved World to camera transform to ' + path)
 		
 if __name__ == '__main__':
 	print('test')
 	logging.getLogger().setLevel(logging.INFO)
 	cpe = CharucoPoseEstimator(depth=True)
-	_, rMat, tVec = cpe.estimatePose(debug=True, correction_z = 0)
+	_, rMat, tVec = cpe.estimatePose(debug=True)
 	
  	# cpe.savePoseAsDepthToWorldTransform()	
 	 

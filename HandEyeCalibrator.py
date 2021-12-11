@@ -46,9 +46,11 @@ class HandEyeCalibrator:
 		
 		self.tfBaseToWorld = RigidTransform(from_frame='base', to_frame='world')
 		self.tfGripperToCam = RigidTransform(from_frame='gripper', to_frame='cam')
+		self.tfGripperCamToGripper = RigidTransform(from_frame='cam', to_frame='gripper')
 		
 		self.poseEstimator: pe.CharucoPoseEstimator = pe.CharucoPoseEstimator(depth=True)
 		self.tfDepthToWorld: RigidTransform = None
+		self.tfWorldToCamera: RigidTransform = None
 		
 		self.server = Server.Server()
 		
@@ -77,6 +79,8 @@ class HandEyeCalibrator:
 			# Buffer variables
 			listRMatBaseToGripper: list = []
 			listTVecBaseToGripper: list = []
+			listRMatGripperToBase: list = []
+			listTVecGripperToBase: list = []
 			listRMatWorldToCamera: list = []
 			listTVecWorldToCamera: list = []
 			
@@ -114,6 +118,9 @@ class HandEyeCalibrator:
 					logging.debug(f'Rotation: {rMatWorldToCamera}')
 					logging.info('Saving transformations')
 					
+					listRMatGripperToBase.append(rMatGripperToBase)
+					listTVecGripperToBase.append(tVecGripperToBase)
+					
 					listRMatBaseToGripper.append(rMatBaseToGripper)
 					listTVecBaseToGripper.append(tVecBaseToGripper)
 					
@@ -149,6 +156,11 @@ class HandEyeCalibrator:
 																	np.array(listRMatBaseToGripper), 
 																	np.array(listTVecBaseToGripper),
 																	method = cv2.CALIB_ROBOT_WORLD_HAND_EYE_SHAH)
+			
+			rMatCamToGripper, tVecCamToGripper = cv2.calibrateHandEye(np.array(listRMatGripperToBase),
+																	 np.array(listTVecGripperToBase),
+																	 np.array(listRMatWorldToCamera),
+																	 np.array(listTVecWorldToCamera))
 																	
 																			
 			logging.info(f'Calculation took {time.time()-start} seconds')
@@ -159,14 +171,18 @@ class HandEyeCalibrator:
 			logging.debug(rMatGripperToCam)
 			logging.debug(tVecGripperToCam)
 			logging.debug(f'Distance Gripper To Cam: {np.linalg.norm(tVecGripperToCam)}')
+			logging.debug(rMatCamToGripper)
+			logging.debug(tVecCamToGripper)
+			logging.debug(f'Distance Cam to Gripper: {np.linalg.norm(tVecCamToGripper)}')
 			
 			self.tfBaseToWorld: RigidTransform = RigidTransform(rotation = rMatBaseToWorld, translation = tVecBaseToWorld, from_frame = 'base', to_frame = 'world')
-			self.tfCamToGripper: RigidTransform = RigidTransform(rotation = rMatGripperToCam, translation = tVecGripperToCam, from_frame = 'gripper', to_frame = 'cam')
-																		 
+			self.tfGripperToCam: RigidTransform = RigidTransform(rotation = rMatGripperToCam, translation = tVecGripperToCam, from_frame = 'gripper', to_frame = 'cam')
+			
+			self.tfCamToGripper: RigidTransform = RigidTransform(rotation = rMatCamToGripper, translation = tVecCamToGripper, from_frame = 'cam', to_frame = 'gripper')
+															 
 			self.tfBaseToWorld.save('handEyeCalibration/baseToWorld.tf')
 			self.tfGripperToCam.save('handEyeCalibration/gripperToCam.tf')
-			
-
+			self.tfCamToGripper.save('handEyeCalibration/camToGripper.tf')
 			
 			logging.info('Saved calibration to file!')
 			
@@ -223,37 +239,79 @@ class HandEyeCalibrator:
 		
 		self.tfDepthToWorld = RigidTransform.load('handEyeCalibration/tfdepthToWorld.tf')
 		tfGraspToBase =  self.tfBaseToWorld.inverse() * self.tfDepthToWorld * tfGraspToDepth 
+		logging.debug(tfGraspToDepth)
 		logging.info(tfGraspToBase)
 		
 		return tfGraspToBase
 	
-	def moveToPoint(self, tfPointToMove: RigidTransform):
+	def graspTransformerGripper(self, tfGraspToDepth: RigidTransform):
 		
 		self.server.commSocket, self.server.commAddress = self.server.establishConnection()
 		
-# 		rMatXAxis = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
-# 		tfPointToMove.rotation = np.transpose(rMatXAxis @ np.transpose(tfPointToMove.rotation))
+		# get the TCP-pose from the robot from gripper to base(!!!)
+		gripperToBase = self.server.receiveData(1024)
+		gripperToBase = gripperToBase[2:len(gripperToBase)]
+		
+		# str format is 'p[tVecX, tVecY, tVecZ, rVecX, rVecY, rVecZ]'
+		gripperToBase = np.fromstring(gripperToBase, dtype = np.float64, sep = ',')
+		rVecGripperToBase = gripperToBase[3:6].reshape(3,1)
+		tVecGripperToBase = gripperToBase[0:3].reshape(3,1)
+		
+		# convert rotation vector to rotation matrix
+		rMatGripperToBase, _ = cv2.Rodrigues(rVecGripperToBase)
+		
+		tfGripperToBase = RigidTransform(rotation = rMatGripperToBase, translation = tVecGripperToBase, from_frame = 'gripper', to_frame = 'base')
+		
+		self.tfWorldToCamera = RigidTransform.load('handEyeCalibration/tfworldToCamera.tf')
+		tfWorldToBase = tfGripperToBase * self.tfGripperToCam.inverse() * self.tfWorldToCamera
+		
+		self.tfDepthToWorld = RigidTransform.load('handEyeCalibration/tfdepthToWorld.tf')
+		tfGraspToBase = tfWorldToBase * self.tfDepthToWorld * tfGraspToDepth
+		
+		logging.info(tfGraspToBase)
+		
+		return tfGraspToBase
+	
+	def moveToPoint(self, tfPointToMove: RigidTransform, rotationXAxis: bool = False):
+		
+		self.server.commSocket, self.server.commAddress = self.server.establishConnection()
+		
+		if rotationXAxis:
+			rMatXAxis = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+			tfPointToMove.rotation = np.transpose(rMatXAxis @ np.transpose(tfPointToMove.rotation))
+			
+			tfPointToMove.translation[0] = tfPointToMove.translation[0] - 0.01
+			tfPointToMove.translation[1] = tfPointToMove.translation[1] + 0.01
+			
+		else:
+			
+			#tfPointToMove.translation[0] -= 0.01
+			tfPointToMove.translation[1] += 0.04 	
+			tfPointToMove.translation[2] -= 0.01
+			
+			rotYAxis90 = np.array([[0, 0, -1],
+	 						       [0, 1, 0], 
+								   [1, 0, 0]], dtype=np.float32)
+		
+			rotZAxis180 = np.array([[-1, 0, 0],
+							        [0, -1, 0], 
+									[0, 0, 1]], dtype=np.float32)
+
+			tfPointToMove.rotation = np.transpose(rotYAxis90 @ np.transpose(tfPointToMove.rotation))
+			tfPointToMove.rotation = np.transpose(rotZAxis180 @ np.transpose(tfPointToMove.rotation))
+			
+
+			
 # 		tfPointToMove.rotation = rMatXAxis @ tfPointToMove.rotation
 		
 # 		tfPointToMove.translation *= 1000
 # 		logging.debug(tfPointToMove.matrix)
-
-		if tfPointToMove.translation[2] < 0.1:
-			tfPointToMove.translation[2] = 0.1
+	
+		if tfPointToMove.translation[2] < 0.105:
+			tfPointToMove.translation[2] = 0.105
 		
-		rotYAxis90 = np.array([[0, 0, -1],
- 						       [0, 1, 0], 
-							   [1, 0, 0]], dtype=np.float32)
-		
-		rotZAxis180 = np.array([[-1, 0, 0],
-						        [0, -1, 0], 
-								[0, 0, 1]], dtype=np.float32)
-
-		tfPointToMove.rotation = np.transpose(rotYAxis90 @ np.transpose(tfPointToMove.rotation))
-		tfPointToMove.rotation = np.transpose(rotZAxis180 @ np.transpose(tfPointToMove.rotation))
-# 		tfPointToMove.translation[0] = -tfPointToMove.translation[0]
-
-		tfPointToMove.translation[1] += 0.0675
+# 		tfPointToMove.translation[0] -= 0.01
+# 		tfPointToMove.translation[1] += 0.025
 		
 		strTVecMarkerToBase = str(tfPointToMove.translation[0])+","+str(tfPointToMove.translation[1])+","+str(tfPointToMove.translation[2])
 		strRVecMarkerToBase = str(tfPointToMove.axis_angle[0])+","+str(tfPointToMove.axis_angle[1])+","+str(tfPointToMove.axis_angle[2])
@@ -277,7 +335,8 @@ if __name__ == '__main__':
 			root_logger.removeHandler(hdlr)
 	
 	logging.root.name = 'Robotiklabor'
-	logging.getLogger().setLevel(logging.DEBUG)
+# 	logging.getLogger().setLevel(logging.DEBUG)
+	logging.getLogger().setLevel(logging.INFO)
 	
 	handler = colorlog.StreamHandler()
 	formatter = colorlog.ColoredFormatter("%(purple)s%(name)-10s "
@@ -296,12 +355,13 @@ if __name__ == '__main__':
 	logger.addHandler(handler)
 	
 	hec = HandEyeCalibrator()
-	#hec.graspTransformer(RigidTransform(from_frame='grasp', to_frame='depth'))	
+	
 # 	hec.calibrateHandEye()
-	
+
 # 	hec.poseEstimator.savePoseAsDepthToWorldTransform(path='handEyeCalibration/tfdepthToWorld.tf')
-	
-	hec.moveToPoint(hec.tfBaseToWorld.inverse())
+# 	hec.poseEstimator.savePoseAsWorldToCameraTransform(path='handEyeCalibration/tfworldToCamera.tf')
+
+	hec.moveToPoint(hec.tfBaseToWorld.inverse(), rotationXAxis=True)
 	#hec.poseEstimator.realsense.saveImageSet(iterationsDilation = 1, filter=True)	
 	#hec.poseEstimator.realsense.openViewer(filter=True)
 		
