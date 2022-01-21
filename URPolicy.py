@@ -36,7 +36,8 @@ if __name__ == "__main__":
 			root_logger.removeHandler(hdlr)
 	
 	logging.root.name = 'Robotiklabor'
-	logging.getLogger().setLevel(logging.DEBUG)
+# 	logging.getLogger().setLevel(logging.DEBUG)
+	logging.getLogger().setLevel(logging.INFO)
 	
 	handler = colorlog.StreamHandler()
 	formatter = colorlog.ColoredFormatter("%(purple)s%(name)-10s "
@@ -53,9 +54,13 @@ if __name__ == "__main__":
 	handler.setFormatter(formatter)
 	logger = colorlog.getLogger()
 	logger.addHandler(handler)
-
+	
+	fully_conv = False
+	policy_type = 'cem'
+	
 	hec = HandEyeCalibrator()
-	model_path = 'C:/Users/Student/Desktop/gqcnn-master/models/GQCNN-4.0-PJ'
+	model_path = 'C:/Users/Student/Desktop/gqcnn-master/models/GQCNN-2.0'
+	# model_path = 'C:/Users/Student/Desktop/gqcnn-master/models/GQCNN4.0-robotiq_3dnet'
 	model_config = json.load(open(os.path.join(model_path, "config.json"),"r"))
 
 	try:
@@ -76,8 +81,11 @@ if __name__ == "__main__":
 			gripper_mode = GripperMode.PARALLEL_JAW
 		else:
 			raise ValueError("Input data mode {} not supported!".format(input_data_mode))
-			
-	config_filename = 'C:/Users/Student/Desktop/gqcnn-master/cfg/examples/gqcnn_pj.yaml'
+	
+	if fully_conv:
+		config_filename = 'C:/Users/Student/Desktop/gqcnn-master/cfg/examples/fc_gqcnn_pj.yaml'
+	else:
+		config_filename = 'C:/Users/Student/Desktop/gqcnn-master/cfg/examples/gqcnn_pj.yaml'
 	
 	config = YamlConfig(config_filename)
 	inpaint_rescale_factor = config["inpaint_rescale_factor"]
@@ -86,17 +94,17 @@ if __name__ == "__main__":
     # Make relative paths absolute.
 	if "gqcnn_model" in policy_config["metric"]:
 		policy_config["metric"]["gqcnn_model"] = model_path
-		if not os.path.isabs(policy_config["metric"]["gqcnn_model"]):
-			policy_config["metric"]["gqcnn_model"] = os.path.join(
-				os.path.dirname(os.path.realpath(__file__)), "..",
-				policy_config["metric"]["gqcnn_model"])
+# 		if not os.path.isabs(policy_config["metric"]["gqcnn_model"]):
+# 			policy_config["metric"]["gqcnn_model"] = os.path.join(
+# 				os.path.dirname(os.path.realpath(__file__)), "..",
+# 				policy_config["metric"]["gqcnn_model"])
 
     # Setup sensor.
 	camera_intr = CameraIntrinsics.load('C:/Users/Student/Desktop/gqcnn-master/data/calib/realsense/realsense.intr')
 	
 	re = RealsenseInterface(align=True, decimation=False)
 	re.start()
-	index = re.saveImageSet(iterationsDilation = 0, filter=True)
+	index = re.saveImageSet(iterationsDilation = 1, filter=True)
 	
 	# Read images.
 	depth_data = np.load(f'img/depth_{index}.npy')
@@ -109,15 +117,22 @@ if __name__ == "__main__":
 	rgbd_im = RgbdImage.from_color_and_depth(color_im, depth_im)
 	state = RgbdImageState(rgbd_im, camera_intr, segmask=segmask)
 	
-	policy_type = "cem"
-	if "type" in policy_config:
-		policy_type = policy_config["type"]
-	if policy_type == "ranking":
+	if fully_conv:
+		policy_config["metric"]["fully_conv_gqcnn_config"][
+            "im_height"] = depth_im.shape[0]
+		policy_config["metric"]["fully_conv_gqcnn_config"][
+            "im_width"] = depth_im.shape[1]
+	
+	logging.info(policy_config["metric"]["gqcnn_model"])
+	
+	
+	
+	if fully_conv:
+		policy = FullyConvolutionalGraspingPolicyParallelJaw(policy_config)
+	elif policy_type == 'ranking':
 		policy = RobustGraspingPolicy(policy_config)
-	elif policy_type == "cem":
+	elif policy_type == 'cem':
 		policy = CrossEntropyRobustGraspingPolicy(policy_config)
-	else:
-		raise ValueError("Invalid policy type: {}".format(policy_type))
 		
 	# Query policy.
 	policy_start = time.time()
@@ -132,7 +147,7 @@ if __name__ == "__main__":
 		vis.grasp(action.grasp, scale=2.5, show_center=False, show_axis=True)
 		vis.title("Planned grasp at depth {0:.3f}m with Q={1:.3f}".format(
 			action.grasp.depth, action.q_value))
-		vis.show()
+		vis.show()	
 	
 	tfGraspToBase = hec.graspTransformer(action.grasp.pose())
 	hec.moveToPoint(tfGraspToBase)

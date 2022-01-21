@@ -211,6 +211,7 @@ class HandEyeCalibrator:
 				logging.info('Loading...')
 				self.tfBaseToWorld = RigidTransform.load('handEyeCalibration/baseToWorld.tf')
 				self.tfGripperToCam = RigidTransform.load('handEyeCalibration/gripperToCam.tf')
+				self.tfCamToGripper = RigidTransform.load('handEyeCalibration/camToGripper.tf')
 				logging.info('Hand-Eye-Calibration loaded')
 			
 		else:
@@ -237,7 +238,7 @@ class HandEyeCalibrator:
 		if (self.tfBaseToWorld.rotation == np.eye(3)).all():
 			logging.warning('Base to World seems to be default matrix')
 		
-		self.tfDepthToWorld = RigidTransform.load('handEyeCalibration/tfdepthToWorld.tf')
+		self.tfDepthToWorld = RigidTransform.load('handEyeCalibration/depthToWorld.tf')
 		tfGraspToBase =  self.tfBaseToWorld.inverse() * self.tfDepthToWorld * tfGraspToDepth 
 		logging.debug(tfGraspToDepth)
 		logging.info(tfGraspToBase)
@@ -262,10 +263,11 @@ class HandEyeCalibrator:
 		
 		tfGripperToBase = RigidTransform(rotation = rMatGripperToBase, translation = tVecGripperToBase, from_frame = 'gripper', to_frame = 'base')
 		
-		self.tfWorldToCamera = RigidTransform.load('handEyeCalibration/tfworldToCamera.tf')
-		tfWorldToBase = tfGripperToBase * self.tfGripperToCam.inverse() * self.tfWorldToCamera
+		self.tfWorldToCamera = RigidTransform.load('handEyeCalibration/worldToCamera.tf')
+		tfWorldToBase = tfGripperToBase * self.tfCamToGripper * self.tfWorldToCamera
 		
-		self.tfDepthToWorld = RigidTransform.load('handEyeCalibration/tfdepthToWorld.tf')
+		self.tfDepthToWorld = RigidTransform.load('handEyeCalibration/depthToWorld.tf')
+		self.tfDeü
 		tfGraspToBase = tfWorldToBase * self.tfDepthToWorld * tfGraspToDepth
 		
 		logging.info(tfGraspToBase)
@@ -280,29 +282,35 @@ class HandEyeCalibrator:
 			rMatXAxis = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
 			tfPointToMove.rotation = np.transpose(rMatXAxis @ np.transpose(tfPointToMove.rotation))
 			
-			tfPointToMove.translation[0] = tfPointToMove.translation[0] - 0.01
+# 			tfPointToMove.translation[0] = tfPointToMove.translation[0] - 0.01
 			tfPointToMove.translation[1] = tfPointToMove.translation[1] + 0.01
 			
 		else:
 			
-			#tfPointToMove.translation[0] -= 0.01
-			tfPointToMove.translation[1] += 0.04 	
-			tfPointToMove.translation[2] -= 0.01
+# 			tfPointToMove.translation[0] += 0.01
+			tfPointToMove.translation[1] += 0.05
+			tfPointToMove.translation[2] += 0.045
+			
 			
 			rotYAxis90 = np.array([[0, 0, -1],
 	 						       [0, 1, 0], 
 								   [1, 0, 0]], dtype=np.float32)
 		
-			rotZAxis180 = np.array([[-1, 0, 0],
-							        [0, -1, 0], 
-									[0, 0, 1]], dtype=np.float32)
+# 			rotZAxis180 = np.array([[-1, 0, 0],
+# 							        [0, -1, 0], 
+# 									[0, 0, 1]], dtype=np.float32)
+			
+# 			rotXAxis5 = np.array([[1, 0, 0],
+#  							        [0, 0.99, -0.1392], 
+#  									[0, 0.1392, 0.99]], dtype=np.float32)
 
 			tfPointToMove.rotation = np.transpose(rotYAxis90 @ np.transpose(tfPointToMove.rotation))
-			tfPointToMove.rotation = np.transpose(rotZAxis180 @ np.transpose(tfPointToMove.rotation))
+# 			tfPointToMove.rotation = np.transpose(rotZAxis180 @ np.transpose(tfPointToMove.rotation))
+# 			tfPointToMove.rotation = np.transpose(rotXAxis5 @ np.transpose(tfPointToMove.rotation))
+			
+			
 			
 
-			
-# 		tfPointToMove.rotation = rMatXAxis @ tfPointToMove.rotation
 		
 # 		tfPointToMove.translation *= 1000
 # 		logging.debug(tfPointToMove.matrix)
@@ -310,23 +318,16 @@ class HandEyeCalibrator:
 		if tfPointToMove.translation[2] < 0.105:
 			tfPointToMove.translation[2] = 0.105
 		
-# 		tfPointToMove.translation[0] -= 0.01
-# 		tfPointToMove.translation[1] += 0.025
-		
 		strTVecMarkerToBase = str(tfPointToMove.translation[0])+","+str(tfPointToMove.translation[1])+","+str(tfPointToMove.translation[2])
 		strRVecMarkerToBase = str(tfPointToMove.axis_angle[0])+","+str(tfPointToMove.axis_angle[1])+","+str(tfPointToMove.axis_angle[2])
 		strMarkerToBase = "( " + strTVecMarkerToBase + "," + strRVecMarkerToBase + " )"
 		
 		logging.debug(strMarkerToBase)
+		logging.info(tfPointToMove.matrix)
+		
 		self.server.sendData(strMarkerToBase)
 
-		#logging.debug(tfPointToMove.euler_angles)
-		#logging.debug(np_Rvec_MarkerToBase)
-		
 
-		print(tfPointToMove.matrix)
-			
-			
 if __name__ == '__main__':
 	
 	root_logger = logging.getLogger()
@@ -358,10 +359,13 @@ if __name__ == '__main__':
 	
 # 	hec.calibrateHandEye()
 
-# 	hec.poseEstimator.savePoseAsDepthToWorldTransform(path='handEyeCalibration/tfdepthToWorld.tf')
-# 	hec.poseEstimator.savePoseAsWorldToCameraTransform(path='handEyeCalibration/tfworldToCamera.tf')
-
+# 	hec.poseEstimator.savePoseAsDepthToWorldTransform(path='handEyeCalibration/depthToWorld.tf')
+# 	hec.poseEstimator.savePoseAsWorldToCameraTransform(path='handEyeCalibration/worldToCamera.tf')
+	
 	hec.moveToPoint(hec.tfBaseToWorld.inverse(), rotationXAxis=True)
+	
+# 	hec.moveToPoint()
+
 	#hec.poseEstimator.realsense.saveImageSet(iterationsDilation = 1, filter=True)	
 	#hec.poseEstimator.realsense.openViewer(filter=True)
 		

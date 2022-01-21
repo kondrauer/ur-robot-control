@@ -48,7 +48,7 @@ class CharucoPoseEstimator:
 		self.realsense = RealsenseInterface(align=False, depth=depth)
 		self.realsense.start()
 	
-	def estimatePose(self, correction_z: float = 0.05, debug: bool = False):
+	def estimatePose(self, correction_z: float = 0.0, debug: bool = False):
 		"""Estimates the camera pose with regards to a charuco board
 		
 		Args:
@@ -152,7 +152,9 @@ class CharucoPoseEstimator:
 			RigidTransform: Transformation from depth to world
 			
 		"""	
-			
+		
+		#TODO: maybe change z_correction to 0 and add 0.035/0.05 to translation afterwards
+		
 		success, rMatWorldToCamera, tVecWorldToCamera = self.estimatePose(debug=debug)
 		
 		if success:
