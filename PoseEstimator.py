@@ -24,7 +24,7 @@ class CharucoPoseEstimator:
 	"""
 
 
-	def __init__(self, squareX: int = 5, squareY: int = 7, squareLength: float = 0.035, squareWidth: float = 0.023, depth: bool = False) -> None:
+	def __init__(self, squareX: int = 5, squareY: int = 7, squareLength: float = 0.035, squareWidth: float = 0.023, depth: bool = False, realsense: bool = True) -> None:
 		"""Constructor for CharucoPoseEstimator
 		
 		Args:
@@ -33,6 +33,7 @@ class CharucoPoseEstimator:
 			squareLength (float): length of squares in meters
 			squareWidth (float): width of squares in meters
 			depth (bool): determines if depth-sensor should be enabled or not
+			realsense(bool): wether or not to start realsense
 			
 		"""
 		
@@ -45,8 +46,9 @@ class CharucoPoseEstimator:
 		self.charucoBoard = cv2.aruco.CharucoBoard_create(self.squareX, self.squareY, self.squareLength, self.squareWidth, self.arucoDict)
 		self.boardSize = self.charucoBoard.getChessboardSize()
 		
-		self.realsense = RealsenseInterface(align=False, depth=depth)
-		self.realsense.start()
+		if realsense:
+			self.realsense = RealsenseInterface(align=False, depth=depth)
+			self.realsense.start()
 	
 	def estimatePose(self, correction_z: float = 0.0, debug: bool = False):
 		"""Estimates the camera pose with regards to a charuco board
@@ -228,10 +230,11 @@ class CharucoPoseEstimator:
 			logging.info('Saved World to camera transform to ' + path)
 		
 if __name__ == '__main__':
-	print('test')
-	logging.getLogger().setLevel(logging.INFO)
-	cpe = CharucoPoseEstimator(depth=True)
-	_, rMat, tVec = cpe.estimatePose(debug=True)
+	pass
+# 	print('test')
+# 	logging.getLogger().setLevel(logging.INFO)
+# 	cpe = CharucoPoseEstimator(depth=True)
+# 	_, rMat, tVec = cpe.estimatePose(debug=True)
 	
  	# cpe.savePoseAsDepthToWorldTransform()	
 	 
