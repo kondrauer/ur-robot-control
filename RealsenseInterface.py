@@ -361,7 +361,10 @@ class RealsenseInterface:
 			
 			# take frameCount frames
 			for x in range(frameCount):
-			    frameset = self.pipeline.wait_for_frames()
+			    frameset = self.pipeline.wait_for_frames()	
+			    if self.align:
+				    frameset = self.align.process(frameset)
+	
 			    frames.append(frameset.get_depth_frame())
 			
 			self.colorFrame = frameset.get_color_frame()
@@ -378,18 +381,13 @@ class RealsenseInterface:
 				self.frame = self.filterTemporal.process(self.frame)
 				self.frame = self.disparityToDepth.process(self.frame)
 				self.frame = self.filterHoleFilling.process(self.frame)
-			
-			# align the streams if true
-			if self.align:
-			    	self.frame = self.align.process(frameset)
-			    	self.colorFrame = self.frame.get_color_frame()
-			    	self.depthFrame = self.frame.get_depth_frame()
-			else:
-				   	
-				self.depthFrame = self.frame
+
+			self.depthFrame = self.frame
+
 		else:
 			# just save one frame set if no filters are applied
 			self.frame: rs.frame = self.pipeline.wait_for_frames()
+			self.unalignedColor = self.frame.get_color_frame()
 			
 			if self.align:
 				self.frame = self.align.process(self.frame)
@@ -484,10 +482,9 @@ class RealsenseInterface:
 		# saved colored depth as .png and .npy
 		cv2.imwrite(f'img/depth_{pngCount}.png', coloredDepth)
 		with open(f'img/depth_{pngCount}.npy', 'wb') as f:
-			print(depthArray.shape)
 			np.save(f, depthArray.reshape(depthArray.shape[0], depthArray.shape[1], 1))
     		
-    		# this can be tuned, depends on lighting conditions	
+    	# this can be tuned, depends on lighting conditions	
 		lowerGreen = np.array([0, 40, 0])
 		upperGreen = np.array([120, 255, 100])
 		

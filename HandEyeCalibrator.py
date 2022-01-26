@@ -289,7 +289,7 @@ class HandEyeCalibrator:
 
 # 			tfPointToMove.translation[0] += 0.01
 			tfPointToMove.translation[1] += 0.05
-			tfPointToMove.translation[2] += 0.045
+			tfPointToMove.translation[2] += 0.03
 
 
 			rotYAxis90 = np.array([[0, 0, -1],

@@ -14,7 +14,7 @@ import colorlog
 import numpy as np
 
 from autolab_core import YamlConfig
-from perception import (BinaryImage, CameraIntrinsics, ColorImage, DepthImage,
+from autolab_core import (BinaryImage, CameraIntrinsics, ColorImage, DepthImage,
                         RgbdImage)
 
 from gqcnn.grasping import (RobustGraspingPolicy,
@@ -22,6 +22,7 @@ from gqcnn.grasping import (RobustGraspingPolicy,
                             FullyConvolutionalGraspingPolicyParallelJaw,
                             FullyConvolutionalGraspingPolicySuction)
 from gqcnn.utils import GripperMode
+from gqcnn.utils.policy_exceptions import NoValidGraspsException
 
 from visualization import Visualizer2D as vis
 
@@ -122,19 +123,14 @@ class URPolicy:
 			
 		# Query policy.
 		policy_start = time.time()
-		self.action = policy(state)
+		try:
+			self.action = policy(state)
+		except NoValidGraspsException:
+			logging.error("No valid graps found")
 		logging.info("Planning took %.3f sec" % (time.time() - policy_start))
-		
-# 		if policy_config["vis"]["final_grasp"]:
-# 			vis.figure(size=(10, 10))
-# 			vis.imshow(rgbd_im.depth,
-# 				       vmin=policy_config["vis"]["vmin"],
-# 					   vmax=policy_config["vis"]["vmax"])
-# 			vis.grasp(action.grasp, scale=2.5, show_center=False, show_axis=True)
-# 			vis.title("Planned grasp at depth {0:.3f}m with Q={1:.3f}".format(
-# 				action.grasp.depth, action.q_value))
-# 			vis.show()	
+			
 		self.tfGraspToBase = self.hec.graspTransformer(self.action.grasp.pose())
+		
 	def executeGrasp(self):
 		
 		self.hec.moveToPoint(self.tfGraspToBase)

@@ -14,10 +14,7 @@ import queue
 import matplotlib.pyplot as plt
 
 from matplotlib.backends.backend_tkagg import (
-    FigureCanvasTkAgg, NavigationToolbar2Tk)
-# Implement the default Matplotlib key bindings.
-from matplotlib.backend_bases import key_press_handler
-from matplotlib.figure import Figure
+    FigureCanvasTkAgg)
 
 from tkinter.scrolledtext import ScrolledText
 from PIL import ImageTk, Image
@@ -70,17 +67,17 @@ class VideoFeed(tk.LabelFrame):
 		
 		rs.getFrames()
 		
-		colorImage = np.array(rs.colorFrame.get_data())
+		colorImage = np.array(rs.unalignedColor.get_data())
 		
 		#convert from bgr to rgb
 		colorImage = colorImage[:,:,::-1]
 		
 		img = Image.fromarray(colorImage)
-		img = img.resize((320, 240), Image.ANTIALIAS)
+		img = img.resize((480, 270), Image.ANTIALIAS)
 		imgtk = ImageTk.PhotoImage(image=img)
 		self.videoStream.imgtk = imgtk
 		self.videoStream.configure(image=imgtk)
-		self.afterID = self.after(100, lambda: self.getNewFrames(self.parent.parent.realsense))
+		self.afterID = self.after(50, lambda: self.getNewFrames(self.parent.parent.realsense))
 		
 			
 class GraspViewer(tk.LabelFrame):
@@ -89,7 +86,7 @@ class GraspViewer(tk.LabelFrame):
 		tk.LabelFrame.__init__(self, parent, *args, **kwargs)
 		self.parent = parent
 		
-		fig = plt.figure(figsize=(4,4))
+		fig = plt.figure(figsize=(4,3))
 		self.graspCanvas = FigureCanvasTkAgg(fig, master=self)
 		self.graspCanvas.get_tk_widget().pack()
 		self.informationLabel = tk.Label(self, text="Depth: 0.000m Quality: 0.00",
@@ -120,26 +117,27 @@ class GraspViewer(tk.LabelFrame):
 		
 		
 	
-class Actions(tk.Frame):
+class Actions(tk.LabelFrame):
 	
 	def __init__(self, parent, *args, **kwargs):
-		tk.Frame.__init__(self, parent, *args, **kwargs)
+		tk.LabelFrame.__init__(self, parent, *args, **kwargs)
 		self.parent = parent
 		
-		self.planButton = tk.Button(self, text="Plan Grasp", command=self.planGrasp)
-		self.executeButton = tk.Button(self, text="Execute Grasp", command=self.executeGrasp)
+		self.planButton = tk.Button(self, text="Plan Grasp", width=20, command=self.planGrasp)
+		self.executeButton = tk.Button(self, text="Execute Grasp", width=20, command=self.executeGrasp)
 		
-		self.planButton.pack(side="top")
-		self.executeButton.pack(side="bottom")
+		self.planButton.pack(side="top", padx=15)
+		self.executeButton.pack(side="top", padx=10)
+		
+
 		
 	def planGrasp(self):
-		
 		self.parent.parent.urPolicy.planGrasp()
 		self.parent.parent.upperFrame.graspViewer.update()
 		self.parent.parent.upperFrame.depthSegmentationViewer.showSelected()
 
 	def executeGrasp(self):
-		...
+		self.parent.parent.urPolicy.executeGrasp()
 
 		
 class DepthSegmentationViewer(tk.LabelFrame):
@@ -160,11 +158,6 @@ class DepthSegmentationViewer(tk.LabelFrame):
 		
 		self.radioButtonFrame.pack(side="bottom", anchor="center")
 		self.imageCanvas.pack(side="top")
-		
-# 		pngCount = int(len(glob.glob1('img/',"*.png"))/3) - 1
-# 		self.img = Image.open(fr'img\color_{pngCount}.png')
-# 		
-# 		self.updateCanvas()
 			
 	def showSelected(self):
 		i = self.selected.get()
@@ -244,11 +237,11 @@ class UpperFrame(tk.Frame):
 		
 		self.videoFeed = VideoFeed(self, text="Liveview Realsense")
 		self.graspViewer = GraspViewer(self, text="Predicted Grasp")
-		self.depthSegmentationViewer = DepthSegmentationViewer(self, text="Image Viewer")
+		self.depthSegmentationViewer = DepthSegmentationViewer(self.videoFeed, text="Image Viewer")
 		
 		self.videoFeed.pack(side="left", fill="both")
-		self.graspViewer.pack(side="left", fill="both")
-		self.depthSegmentationViewer.pack(side="left", fill="both")
+		self.graspViewer.pack(side="left", fill="x", anchor=tk.N, padx=10, ipadx=10)
+		self.depthSegmentationViewer.pack(side="bottom", fill="both", padx=10, pady=5)
 	
 class LowerFrame(tk.Frame):
 	
@@ -256,11 +249,11 @@ class LowerFrame(tk.Frame):
 		tk.Frame.__init__(self, parent, *args, **kwargs)
 		self.parent = parent
 		
-		self.actions = Actions(self)
+		self.actions = Actions(self, text="Actions")
 		self.debugLogger = DebugLogger(self)
 		
-		self.actions.pack(side="left")
-		self.debugLogger.pack(side="left")
+		self.actions.pack(side="left", anchor="center", padx=5, ipadx=10, ipady=20)
+		self.debugLogger.pack(side="left", fill="x")
 			
 			
 
@@ -270,9 +263,7 @@ class PolicyApp(tk.Frame):
 		tk.Frame.__init__(self, parent, *args, **kwargs)
 		self.parent = parent
 		self.parent.title("Robotiklabor Dex-Net GUI")
-		self.parent.geometry("1280x720")
-		
-
+		#self.parent.geometry("1280x720")
 		
 		self.toolbar = Toolbar(self)
 		self.lowerFrame = LowerFrame(self)
@@ -287,14 +278,13 @@ class PolicyApp(tk.Frame):
 		
 		self.toolbar.pack(side = "top")
 		
-		self.upperFrame.pack(side = "top", fill=tk.X, padx=5)
-		self.lowerFrame.pack(side = "bottom", fill=tk.X)
+		self.upperFrame.pack(side = "top", anchor="center")
+		self.lowerFrame.pack(side = "bottom", fill="y", anchor="center", pady=10)
 		
 	def onExit(self):
-		
 		self.upperFrame.videoFeed.after_cancel(self.upperFrame.videoFeed.afterID)
 		self.lowerFrame.debugLogger.after_cancel(self.lowerFrame.debugLogger.afterID)
-		self.parent.destroy()
+		self.parent.quit()
 			
 			
 if __name__ == "__main__":
