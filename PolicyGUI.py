@@ -10,6 +10,7 @@ import numpy as np
 import glob
 import logging
 import queue
+import time
 
 import matplotlib.pyplot as plt
 
@@ -88,22 +89,16 @@ class GraspViewer(tk.LabelFrame):
 		
 		fig = plt.figure(figsize=(4,3))
 		self.graspCanvas = FigureCanvasTkAgg(fig, master=self)
-		self.graspCanvas.get_tk_widget().pack()
+		self.graspCanvas.get_tk_widget().pack(pady=(6,0))
 		self.informationLabel = tk.Label(self, text="Depth: 0.000m Quality: 0.00",
  								         bg="white", borderwidth=2, relief="groove")
 		
-		self.informationLabel.pack(side="bottom")
-		
-# 		self.img = Image.open(r'img\color_0.png')
-# 		self.img = self.img.resize((320, 240), Image.ANTIALIAS)
-# 		self.img = ImageTk.PhotoImage(self.img)
-# 		self.graspCanvas.update()
-# 		self.graspCanvas.create_image(self.graspCanvas.winfo_reqwidth()/2, self.graspCanvas.winfo_reqheight()/2, anchor="center", image=self.img)
+		self.informationLabel.pack(side="bottom", pady=5)
 			
 	def update(self):
-		
-		self.img = self.parent.parent.urPolicy.rgbd_im.depth
-		self.action = self.parent.parent.urPolicy.action
+		self.urPolicy = self.parent.parent.parent.lowerFrame.actions.urPolicy
+		self.img = self.urPolicy.rgbd_im.depth
+		self.action = self.urPolicy.action
 		
 		plt.clf()
 		plt.axis("off")
@@ -114,9 +109,7 @@ class GraspViewer(tk.LabelFrame):
 		
 		self.informationLabel.config(text=f"Depth: {self.action.grasp.depth:.3f}m Quality: {self.action.q_value:.2f}")
 		
-		
-		
-	
+
 class Actions(tk.LabelFrame):
 	
 	def __init__(self, parent, *args, **kwargs):
@@ -129,15 +122,36 @@ class Actions(tk.LabelFrame):
 		self.planButton.pack(side="top", padx=15)
 		self.executeButton.pack(side="top", padx=10)
 		
-
+		self.urPolicy = None
 		
 	def planGrasp(self):
-		self.parent.parent.urPolicy.planGrasp()
-		self.parent.parent.upperFrame.graspViewer.update()
+		self.urPolicy = self.parent.parent.urPolicy
+		
+		self.urPolicy.planGrasp()
+		self.parent.parent.upperFrame.rightFrame.graspViewer.update()
 		self.parent.parent.upperFrame.depthSegmentationViewer.showSelected()
 
-	def executeGrasp(self):
-		self.parent.parent.urPolicy.executeGrasp()
+	def executeGrasp(self):	
+		if not self.urPolicy:
+			logging.warning("You have to Plan a Grasp first!")
+		else:
+			
+			self.options = self.parent.parent.upperFrame.rightFrame.options
+			
+			rotMat = self.options.rotMatEntry.get("1.0",'end-1c')
+			
+			rotMat = rotMat.replace("[", "")
+			rotMat = rotMat.replace("]", "")
+			rotMat = rotMat.replace("\n", " ")
+			rotMat = rotMat.replace(" ", "")
+			
+			rotMat = np.array(rotMat.split(",")).reshape(3,3)
+				
+			self.parent.parent.urPolicy.executeGrasp(corrX = float(self.options.corrXVar.get()),
+											corrY = float(self.options.corrYVar.get()),
+											corrZ = float(self.options.corrZVar.get()),
+											rotMat = rotMat,
+											safetyVal = float(self.options.safetyValVar.get()))
 
 		
 class DepthSegmentationViewer(tk.LabelFrame):
@@ -210,15 +224,13 @@ class DebugLogger(tk.Frame):
 		self.scrolledText.pack()
 	
 	def appendMessage(self, message):
-		
 		msg = self.queueHandler.format(message)
 		self.scrolledText.configure(state="normal")
 		self.scrolledText.insert(tk.END, msg + "\n", message.levelname)
 		self.scrolledText.configure(state="disabled")
 		self.scrolledText.yview(tk.END)
 		
-	def pollLogQueue(self):
-		
+	def pollLogQueue(self):	
 		while True:
 			try:
 				message = self.logQueue.get(block=False)
@@ -228,7 +240,103 @@ class DebugLogger(tk.Frame):
 				self.appendMessage(message)
 		
 		self.afterID = self.after(100, self.pollLogQueue)
-			
+
+class Options(tk.LabelFrame):
+	
+	def __init__(self, parent, *args, **kwargs):
+		tk.LabelFrame.__init__(self, parent, *args, **kwargs)
+		self.parent = parent
+		
+		self.corrX = tk.Label(self, text="Correction X-Axis (in mm): ")
+		self.corrY = tk.Label(self, text="Correction Y-Axis (in mm): ")
+		self.corrZ = tk.Label(self, text="Correction Z-Axis (in mm): ")
+		self.rotMat = tk.Label(self, text="Rotation Matrix (3x3): ")
+		self.safetyVal = tk.Label(self, text="Safety Z-Value (in mm): ")
+		self.modelPath = tk.Label(self, text="Model Path: ")
+		self.cfgPath = tk.Label(self, text="Policy Config Path: ")
+		self.intrPath = tk.Label(self, text="Camera Intrinsics Path: ")
+		self.hecPath = tk.Label(self, text="Hand Eye Calibration Path: ")
+		self.ip = tk.Label(self, text="IP: ")
+		self.port = tk.Label(self, text="Port: ")
+		
+		self.corrXVar = tk.StringVar(self, value="0.000")
+		self.corrXEntry = tk.Entry(self, textvariable=self.corrXVar, width=5)
+		self.corrYVar = tk.StringVar(self, value="0.05")
+		self.corrYEntry = tk.Entry(self, textvariable=self.corrYVar, width=5)
+		self.corrZVar = tk.StringVar(self, value="0.03")
+		self.corrZEntry = tk.Entry(self, textvariable=self.corrZVar, width=5)
+		
+		self.rotMatEntry = tk.Text(self, height=3, width=20)
+		self.rotMatEntry.insert(tk.END, "[[0, 0, -1],\n[0, 1, 0],\n[1, 0, 0]]")
+		
+		self.safetyValVar = tk.StringVar(self, value="0.105")
+		self.safetyValEntry = tk.Entry(self, textvariable=self.safetyValVar, width=5)
+		self.modelPathVar = tk.StringVar(self, value="J:/Labor/gqcnn/models/GQCNN-2.0")
+		self.modelPathEntry = tk.Entry(self, textvariable=self.modelPathVar, width=50)
+		self.cfgPathVar = tk.StringVar(self, value="J:/Labor/gqcnn/cfg/examples/gqcnn_pj.yaml")
+		self.cfgPathEntry = tk.Entry(self, textvariable=self.cfgPathVar, width=50)
+		self.intrPathVar = tk.StringVar(self, value="J:/Labor/gqcnn/data/calib/realsense/realsense.intr")
+		self.intrPathEntry = tk.Entry(self, textvariable=self.intrPathVar, width=50)
+		self.hecPathVar = tk.StringVar(self, value="handEyeCalibration/")
+		self.hecPathEntry = tk.Entry(self, textvariable=self.hecPathVar)
+		self.ipVar = tk.StringVar(self, value="10.83.2.1")
+		self.ipEntry = tk.Entry(self, textvariable=self.ipVar, width=15)
+		self.portVar = tk.StringVar(self, value="2000")
+		self.portEntry = tk.Entry(self, textvariable=self.portVar, width=5)
+		
+		self.reloadConfig = tk.Button(self, text="Reload Policy", command=self.reloadPolicy, width=20)
+		
+		self.corrX.grid(row=0, column=0, sticky="w", padx=(5,0))
+		self.corrXEntry.grid(row=0, column=1, sticky="w")
+		self.corrY.grid(row=1, column=0, sticky="w", padx=(5,0))
+		self.corrYEntry.grid(row=1, column=1, sticky="w")
+		self.corrZ.grid(row=2, column=0, sticky="w", padx=(5,0))
+		self.corrZEntry.grid(row=2, column=1, sticky="w")
+		
+		self.rotMat.grid(row=3, column=0, sticky="w", padx=(5,0))
+		self.rotMatEntry.grid(row=3, column=1, sticky="w")
+		self.safetyVal.grid(row=4, column=0, sticky="w", padx=(5,0))
+		self.safetyValEntry.grid(row=4, column=1, sticky="w")
+		self.modelPath.grid(row=5, column=0, sticky="w", padx=(5,0))
+		self.modelPathEntry.grid(row=5, column=1, sticky="w")
+		self.cfgPath.grid(row=6, column=0, sticky="w", padx=(5,0))
+		self.cfgPathEntry.grid(row=6, column=1, sticky="w")
+		self.intrPath.grid(row=7, column=0, sticky="w", padx=(5,0))
+		self.intrPathEntry.grid(row=7, column=1, sticky="w")
+		
+		self.hecPath.grid(row=8, column=0, sticky="w", padx=(5,0))
+		self.hecPathEntry.grid(row=8, column=1, sticky="w")
+		self.ip.grid(row=9, column=0, sticky="w", padx=(5,0))
+		self.ipEntry.grid(row=9, column=1, stick="w")
+		self.port.grid(row=9, column=2, sticky="w")
+		self.portEntry.grid(row=9, column=3, sticky="w")
+		
+		self.reloadConfig.grid(row=10, column=0, sticky="w", pady=(5,0), padx=5)
+		
+	def reloadPolicy(self):
+		
+		del self.parent.parent.parent.urPolicy
+		#self.parent.parent.parent.urPolicy = None
+		self.parent.parent.parent.urPolicy = URPolicy(re=self.parent.parent.parent.realsense,
+														model_path=self.modelPathVar.get(),
+														config_filename=self.cfgPathVar.get(),
+														intr_path=self.intrPathEntry.get(),
+														ip=self.ipVar.get(),
+														port=int(self.portVar.get()),
+														hec_path=self.hecPathVar.get())
+		
+class RightFrame(tk.Frame):
+	
+	def __init__(self, parent, *args, **kwargs):
+		tk.Frame.__init__(self, parent, *args, **kwargs)
+		self.parent = parent
+		
+		self.graspViewer = GraspViewer(self, text="Predicted Grasp")
+		self.options = Options(self, text="Options")
+		
+		self.graspViewer.pack(side="top", fill="x", anchor=tk.N)
+		self.options.pack(side="bottom", fill="x", ipadx=10, ipady=5)
+		
 class UpperFrame(tk.Frame):
 	
 	def __init__(self, parent, *args, **kwargs):
@@ -236,12 +344,14 @@ class UpperFrame(tk.Frame):
 		self.parent = parent
 		
 		self.videoFeed = VideoFeed(self, text="Liveview Realsense")
-		self.graspViewer = GraspViewer(self, text="Predicted Grasp")
+		self.rightFrame = RightFrame(self)
 		self.depthSegmentationViewer = DepthSegmentationViewer(self.videoFeed, text="Image Viewer")
 		
+		
 		self.videoFeed.pack(side="left", fill="both")
-		self.graspViewer.pack(side="left", fill="x", anchor=tk.N, padx=10, ipadx=10)
+		self.rightFrame.pack(side="left", fill="both", padx=10)
 		self.depthSegmentationViewer.pack(side="bottom", fill="both", padx=10, pady=5)
+		
 	
 class LowerFrame(tk.Frame):
 	
@@ -271,15 +381,13 @@ class PolicyApp(tk.Frame):
 		self.realsense = RealsenseInterface(align=True, decimation=False)
 		self.realsense.start()
 		
-		self.urPolicy = URPolicy(re = self.realsense)
-		
 		self.upperFrame = UpperFrame(self)
 		
-		
+		self.urPolicy = URPolicy(re = self.realsense)
+
 		self.toolbar.pack(side = "top")
-		
-		self.upperFrame.pack(side = "top", anchor="center")
-		self.lowerFrame.pack(side = "bottom", fill="y", anchor="center", pady=10)
+		self.upperFrame.pack(side = "top", anchor="center", padx=10)
+		self.lowerFrame.pack(side = "bottom", fill="both", anchor="center", pady=10, padx=10)
 		
 	def onExit(self):
 		self.upperFrame.videoFeed.after_cancel(self.upperFrame.videoFeed.afterID)

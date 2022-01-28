@@ -33,8 +33,9 @@ from HandEyeCalibrator import HandEyeCalibrator
 class URPolicy:
 	
 	def __init__(self, debug: bool = False, fully_conv: bool = False, policy_type: str = "cem",
-				  model_path:str = 'C:/Users/Student/Desktop/gqcnn-master/models/GQCNN-2.0', 
-				  re: RealsenseInterface=None):
+				  model_path:str = r'J:\Labor\gqcnn\models\GQCNN-2.0', config_filename:str = 'J:/Labor/gqcnn/cfg/examples/gqcnn_pj.yaml', 
+				  intr_path:str = 'J:/Labor/gqcnn/data/calib/realsense/realsense.intr', re: RealsenseInterface=None, ip="10.83.2.1", port=2000,
+				  hec_path:str = 'handEyeCalibration/'):
 		
 		self.fully_conv = fully_conv
 		self.policy_type = policy_type
@@ -60,10 +61,8 @@ class URPolicy:
 			else:
 				raise ValueError("Input data mode {} not supported!".format(self.input_data_mode))
 		
-		if self.fully_conv:
-			self.config_filename = 'C:/Users/Student/Desktop/gqcnn-master/cfg/examples/fc_gqcnn_pj.yaml'
-		else:
-			self.config_filename = 'C:/Users/Student/Desktop/gqcnn-master/cfg/examples/gqcnn_pj.yaml'
+
+		self.config_filename = config_filename
 		
 		self.config = YamlConfig(self.config_filename)
 		self.inpaint_rescale_factor = self.config["inpaint_rescale_factor"]
@@ -71,9 +70,9 @@ class URPolicy:
 		
 		self.policy_config["metric"]["gqcnn_model"] = self.model_path
 		
-		self.camera_intr = CameraIntrinsics.load('C:/Users/Student/Desktop/gqcnn-master/data/calib/realsense/realsense.intr')
+		self.camera_intr = CameraIntrinsics.load(intr_path)
 		
-		self.hec = HandEyeCalibrator(realsense=False)
+		self.hec = HandEyeCalibrator(realsense=False, ip=ip, port=port, path=hec_path)
 		self.tfGraspToBase = None
 		
 		if not re:
@@ -131,7 +130,7 @@ class URPolicy:
 			
 		self.tfGraspToBase = self.hec.graspTransformer(self.action.grasp.pose())
 		
-	def executeGrasp(self):
+	def executeGrasp(self, corrX: float = 0, corrY: float = 0, corrZ: float = 0, rotMat: np.array = None, safetyVal: float = 0.105):
 		
 		self.hec.moveToPoint(self.tfGraspToBase)
 

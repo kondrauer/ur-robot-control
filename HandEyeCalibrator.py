@@ -25,7 +25,7 @@ class HandEyeCalibrator:
 	"""
 
 
-	def __init__(self, numberOfMeasurements: int = 25, realsense: bool = True) -> None:
+	def __init__(self, numberOfMeasurements: int = 25, realsense: bool = True, ip:str = '10.83.2.1', port: int = 2000, path:str = 'handEyeCalibration/') -> None:
 		"""Constructor for HandEyeCalibrator
 
 			Args:
@@ -52,10 +52,10 @@ class HandEyeCalibrator:
 		self.tfDepthToWorld: RigidTransform = None
 		self.tfWorldToCamera: RigidTransform = None
 
-		self.server = Server.Server()
+		self.server = Server.Server(ip = ip, port = port)
 
 		# check if the calibration was already done and load it
-		self.loadCalibrationFromFile()
+		self.loadCalibrationFromFile(path = path)
 
 	def calibrateHandEye(self):
 		"""Executes the Hand-Eye-Calibration
@@ -274,7 +274,8 @@ class HandEyeCalibrator:
 
 		return tfGraspToBase
 
-	def moveToPoint(self, tfPointToMove: RigidTransform, rotationXAxis: bool = False):
+	def moveToPoint(self, tfPointToMove: RigidTransform, rotationXAxis: bool = False, corrX: float = 0,
+				  corrY: float = 0, corrZ: float = 0, rotMat: np.array = None, safetyVal: float = 0.105):
 
 		self.server.commSocket, self.server.commAddress = self.server.establishConnection()
 
@@ -287,14 +288,15 @@ class HandEyeCalibrator:
 
 		else:
 
-# 			tfPointToMove.translation[0] += 0.01
-			tfPointToMove.translation[1] += 0.05
-			tfPointToMove.translation[2] += 0.03
+			tfPointToMove.translation[0] += corrX
+			tfPointToMove.translation[1] += corrY
+			tfPointToMove.translation[2] += corrZ
 
 
-			rotYAxis90 = np.array([[0, 0, -1],
-	 						       [0, 1, 0],
-								   [1, 0, 0]], dtype=np.float32)
+			tfPointToMove.rotation = np.transpose(rotMat @ np.transpose(tfPointToMove.rotation))
+# 			rotYAxis90 = np.array([[0, 0, -1],
+# 	 						       [0, 1, 0],
+# 								   [1, 0, 0]], dtype=np.float32)
 
 # 			rotZAxis180 = np.array([[-1, 0, 0],
 # 							        [0, -1, 0],
@@ -303,8 +305,10 @@ class HandEyeCalibrator:
 # 			rotXAxis5 = np.array([[1, 0, 0],
 #  							        [0, 0.99, -0.1392],
 #  									[0, 0.1392, 0.99]], dtype=np.float32)
+		
 
-			tfPointToMove.rotation = np.transpose(rotYAxis90 @ np.transpose(tfPointToMove.rotation))
+
+# 			tfPointToMove.rotation = np.transpose(rotYAxis90 @ np.transpose(tfPointToMove.rotation))
 # 			tfPointToMove.rotation = np.transpose(rotZAxis180 @ np.transpose(tfPointToMove.rotation))
 # 			tfPointToMove.rotation = np.transpose(rotXAxis5 @ np.transpose(tfPointToMove.rotation))
 
@@ -315,8 +319,8 @@ class HandEyeCalibrator:
 # 		tfPointToMove.translation *= 1000
 # 		logging.debug(tfPointToMove.matrix)
 
-		if tfPointToMove.translation[2] < 0.105:
-			tfPointToMove.translation[2] = 0.105
+		if tfPointToMove.translation[2] < safetyVal:
+			tfPointToMove.translation[2] = safetyVal
 
 		strTVecMarkerToBase = str(tfPointToMove.translation[0])+","+str(tfPointToMove.translation[1])+","+str(tfPointToMove.translation[2])
 		strRVecMarkerToBase = str(tfPointToMove.axis_angle[0])+","+str(tfPointToMove.axis_angle[1])+","+str(tfPointToMove.axis_angle[2])
