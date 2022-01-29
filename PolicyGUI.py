@@ -145,7 +145,7 @@ class Actions(tk.LabelFrame):
 			rotMat = rotMat.replace("\n", " ")
 			rotMat = rotMat.replace(" ", "")
 			
-			rotMat = np.array(rotMat.split(",")).reshape(3,3)
+			rotMat = np.array(rotMat.split(","), dtype=np.float64).reshape(3,3)
 				
 			self.parent.parent.urPolicy.executeGrasp(corrX = float(self.options.corrXVar.get()),
 											corrY = float(self.options.corrYVar.get()),

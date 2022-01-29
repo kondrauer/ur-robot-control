@@ -132,7 +132,7 @@ class URPolicy:
 		
 	def executeGrasp(self, corrX: float = 0, corrY: float = 0, corrZ: float = 0, rotMat: np.array = None, safetyVal: float = 0.105):
 		
-		self.hec.moveToPoint(self.tfGraspToBase)
+		self.hec.moveToPoint(self.tfGraspToBase, corrX = corrX, corrY = corrY, corrZ = corrZ, rotMat = rotMat, safetyVal = safetyVal)
 
 if __name__ == "__main__":
  	root_logger = logging.getLogger()
