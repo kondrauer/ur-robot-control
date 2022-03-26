@@ -12,6 +12,8 @@ import logging
 import queue
 import time
 
+import os
+
 import matplotlib.pyplot as plt
 
 from matplotlib.backends.backend_tkagg import (
@@ -116,13 +118,21 @@ class Actions(tk.LabelFrame):
 		tk.LabelFrame.__init__(self, parent, *args, **kwargs)
 		self.parent = parent
 		
+# 		self.calibrationButton = tk.Button(self, text="Hand-Eye-Calibration", width=20, command=self.calibrateHandEye)
 		self.planButton = tk.Button(self, text="Plan Grasp", width=20, command=self.planGrasp)
 		self.executeButton = tk.Button(self, text="Execute Grasp", width=20, command=self.executeGrasp)
 		
+# 		self.calibrationButton.pack(side="top", padx=15)
 		self.planButton.pack(side="top", padx=15)
 		self.executeButton.pack(side="top", padx=10)
 		
 		self.urPolicy = None
+# 		self.hec = None
+		
+# 	def calibrateHandEye(self):
+# 		
+# 		self.hec = self.parent.parent.urPolicy.hec
+# 		self.hec.calibrateHandEye()
 		
 	def planGrasp(self):
 		self.urPolicy = self.parent.parent.urPolicy
@@ -315,15 +325,20 @@ class Options(tk.LabelFrame):
 		
 	def reloadPolicy(self):
 		
-		del self.parent.parent.parent.urPolicy
+
 		#self.parent.parent.parent.urPolicy = None
-		self.parent.parent.parent.urPolicy = URPolicy(re=self.parent.parent.parent.realsense,
+		if os.path.isdir(self.modelPathVar.get()):
+			self.parent.parent.parent.urPolicy.hec.server.closeConnection()
+			del self.parent.parent.parent.urPolicy
+			self.parent.parent.parent.urPolicy = URPolicy(re=self.parent.parent.parent.realsense,
 														model_path=self.modelPathVar.get(),
 														config_filename=self.cfgPathVar.get(),
 														intr_path=self.intrPathEntry.get(),
 														ip=self.ipVar.get(),
 														port=int(self.portVar.get()),
 														hec_path=self.hecPathVar.get())
+		else:
+			logging.error("Model directory does not exist")
 		
 class RightFrame(tk.Frame):
 	

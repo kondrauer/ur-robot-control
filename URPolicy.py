@@ -71,16 +71,15 @@ class URPolicy:
 		self.policy_config["metric"]["gqcnn_model"] = self.model_path
 		
 		self.camera_intr = CameraIntrinsics.load(intr_path)
-		
-		self.hec = HandEyeCalibrator(realsense=False, ip=ip, port=port, path=hec_path)
+		self.hec = HandEyeCalibrator(realsense=False, ip=ip, port=port, path=hec_path) 
 		self.tfGraspToBase = None
 		
 		if not re:
  			self.re = RealsenseInterface(align=True, decimation=False)
- 			self.re.start()
+ 			self.re.start(preprocessing = True)
 		else:
-			self.re = re   
-		
+			self.re = re 
+			
 		logging.root.name = 'Robotiklabor'
 		
 		if debug:
@@ -90,7 +89,7 @@ class URPolicy:
 		
 	def planGrasp(self):
 		
-		self.index = self.re.saveImageSet(iterationsDilation = 1, filter=True)
+		self.index = self.re.saveImageSet(iterationsDilation = 1, filter=False)
 		
 		# Read images.
 		depth_data = np.load(f'img/depth_{self.index}.npy')
@@ -209,7 +208,7 @@ if __name__ == "__main__":
  	
  	re = RealsenseInterface(align=True, decimation=False)
  	re.start()
- 	index = re.saveImageSet(iterationsDilation = 1, filter=True)
+ 	index = re.saveImageSet(iterationsDilation = 0, filter=False)
  	
  	# Read images.
  	depth_data = np.load(f'img/depth_{index}.npy')

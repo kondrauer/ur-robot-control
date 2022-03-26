@@ -104,7 +104,7 @@ class HandEyeCalibrator:
 				rMatBaseToGripper = rMatGripperToBase.T
 				tVecBaseToGripper = -rMatBaseToGripper @ tVecGripperToBase
 
-				logging.info('Bast to gripper of robot transformation determined')
+				logging.info('Base to gripper of robot transformation determined')
 				logging.debug(f'Translation: {tVecBaseToGripper}')
 				logging.debug(f'Rotation: {rMatBaseToGripper}')
 
@@ -334,43 +334,43 @@ class HandEyeCalibrator:
 
 if __name__ == '__main__':
 	pass
-#  	root_logger = logging.getLogger()
-#  	for hdlr in root_logger.handlers:
-# 		if isinstance(hdlr, logging.StreamHandler):
-#  			root_logger.removeHandler(hdlr)
+	root_logger = logging.getLogger()
+	for hdlr in root_logger.handlers:
+		if isinstance(hdlr, logging.StreamHandler):
+ 			root_logger.removeHandler(hdlr)
 
-#  	logging.root.name = 'Robotiklabor'
-# # 	logging.getLogger().setLevel(logging.DEBUG)
-#  	logging.getLogger().setLevel(logging.INFO)
+	logging.root.name = 'Robotiklabor'
+# 	logging.getLogger().setLevel(logging.DEBUG)
+	logging.getLogger().setLevel(logging.INFO)
 
-#  	handler = colorlog.StreamHandler()
-#  	formatter = colorlog.ColoredFormatter("%(purple)s%(name)-10s "
-# 						"%(log_color)s%(levelname)-8s%(reset)s "
-# 						"%(white)s%(message)s",
-# 						reset=True,
-# 						log_colors={
-#  							"DEBUG": "cyan",
-#  							"INFO": "green",
-#  							"WARNING": "yellow",
-#  							"ERROR": "red",
-#  							"CRITICAL": "red,bg_white",
-# 						},)
-#  	handler.setFormatter(formatter)
-#  	logger = colorlog.getLogger()
-#  	logger.addHandler(handler)
+	handler = colorlog.StreamHandler()
+	formatter = colorlog.ColoredFormatter("%(purple)s%(name)-10s "
+						"%(log_color)s%(levelname)-8s%(reset)s "
+						"%(white)s%(message)s",
+						reset=True,
+						log_colors={
+ 							"DEBUG": "cyan",
+ 							"INFO": "green",
+ 							"WARNING": "yellow",
+ 							"ERROR": "red",
+ 							"CRITICAL": "red,bg_white",
+						},)
+	handler.setFormatter(formatter)
+	logger = colorlog.getLogger()
+	logger.addHandler(handler)
 
-#  	hec = HandEyeCalibrator()
+	hec = HandEyeCalibrator()
 
-# # 	hec.calibrateHandEye()
+	hec.calibrateHandEye()
 
-# # 	hec.poseEstimator.savePoseAsDepthToWorldTransform(path='handEyeCalibration/depthToWorld.tf')
-# # 	hec.poseEstimator.savePoseAsWorldToCameraTransform(path='handEyeCalibration/worldToCamera.tf')
+# 	hec.poseEstimator.savePoseAsDepthToWorldTransform(path='handEyeCalibration/depthToWorld.tf')
+# 	hec.poseEstimator.savePoseAsWorldToCameraTransform(path='handEyeCalibration/worldToCamera.tf')
 
-#  	hec.moveToPoint(hec.tfBaseToWorld.inverse(), rotationXAxis=True)
+ 	# hec.moveToPoint(hec.tfBaseToWorld.inverse(), rotationXAxis=True)
 
-#  	hec.moveToPoint()
+ 	# hec.moveToPoint()
 
-# 	hec.poseEstimator.realsense.saveImageSet(iterationsDilation = 1, filter=True)
-# 	hec.poseEstimator.realsense.openViewer(filter=True)
+ 	# hec.poseEstimator.realsense.saveImageSet(iterationsDilation = 1, filter=True)
+ 	# hec.poseEstimator.realsense.openViewer(filter=True)
 
 

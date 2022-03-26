@@ -198,7 +198,7 @@ class RealsenseInterface:
 				for i in range(int(preset_range.max)):
 					visulpreset = depth_sensor.get_option_value_description(rs.option.visual_preset,i)
 					#print('%02d: %s' %(i,visulpreset))
-					if visulpreset == "Short Range":
+					if visulpreset == "Low Ambient Light":
 						depth_sensor.set_option(rs.option.visual_preset, i)
 				
 				# wait some time for auto exposure
@@ -484,9 +484,10 @@ class RealsenseInterface:
 		with open(f'img/depth_{pngCount}.npy', 'wb') as f:
 			np.save(f, depthArray.reshape(depthArray.shape[0], depthArray.shape[1], 1))
     		
-    	# this can be tuned, depends on lighting conditions	
-		lowerGreen = np.array([0, 40, 0])
-		upperGreen = np.array([120, 255, 100])
+    	# this can be tuned, depends on lighting conditions
+		# format is BGR not RGB
+		lowerGreen = np.array([0, 50, 0])
+		upperGreen = np.array([160, 255, 100])
 		
 		# get mid coordinates of picture
 		midX = int(colorArray.shape[1]/2)

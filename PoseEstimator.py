@@ -46,9 +46,12 @@ class CharucoPoseEstimator:
 		self.charucoBoard = cv2.aruco.CharucoBoard_create(self.squareX, self.squareY, self.squareLength, self.squareWidth, self.arucoDict)
 		self.boardSize = self.charucoBoard.getChessboardSize()
 		
-		if realsense:
-			self.realsense = RealsenseInterface(align=False, depth=depth)
-			self.realsense.start()
+		if isinstance(realsense, bool):
+			if realsense:
+				self.realsense = RealsenseInterface(align=False, depth=depth)
+				self.realsense.start()
+		elif realsense:
+			self.realsense = realsense
 	
 	def estimatePose(self, correction_z: float = 0.0, debug: bool = False):
 		"""Estimates the camera pose with regards to a charuco board
