@@ -35,7 +35,7 @@ class Server:
 		
 		self.port = port
 		
-		self.serverAddress: tuple = (self.ip, port)
+		self.serverAddress: tuple = (self.ip, self.port)
 		self.serverSocket.bind(self.serverAddress)
 		logging.info(f'Socket bound to: {self.ip}:{self.port}')
 		
