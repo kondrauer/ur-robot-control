@@ -15,7 +15,7 @@ Tested on a mix of household objects, industrial parts, and toys with varying ge
 
 <img src="docs/experiment_set.jpg" alt="UR10e experiment set" style="width: 50%; border-radius: 8px;"/>
 
-Short grasp demonstrations with the experiment set shown above.:
+Short grasp demonstrations with the experiment set shown above:
 
 - [Grasp Demo 1](docs/videos/compressed_grasp-demo-1.mp4)
 - [Grasp Demo 2](docs/videos/compressed_grasp-demo-2.mp4)
