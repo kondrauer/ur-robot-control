@@ -2,11 +2,27 @@
 
 > Bachelor thesis — applying Berkeley's [GQ-CNN](https://github.com/BerkeleyAutomation/gqcnn) / [Dex-Net](https://berkeleyautomation.github.io/dex-net/) pipeline to a real UR10e robot arm with an Intel RealSense L515 and a Robotiq 2F-85 parallel-jaw gripper.
 
-![UR10e experiment setup](docs/experiment_1.jpg)
+<div style="display: flex; justify-content: space-around; align-items: center;">
+    <img src="docs/experiment_1.jpg" alt="UR10e experiment setup" style="width: 49%; border-radius: 8px;"/>
+    <img src="docs/experiment_2.jpg" alt="Second experiment image" style="width: 49%; border-radius: 8px;"/>
+</div>
 
 The hardest part of robotic grasping isn't the neural network — it's everything around it. This project implements the full pipeline from depth image capture to physical grasp execution: training custom Grasp Quality CNNs on synthetic datasets, hand-eye calibration via ChArUco boards, real-time pose estimation, cross-entropy method grasp optimization, and closed-loop robot control over TCP.
 
 Tested on a mix of household objects, industrial parts, and toys with varying geometric complexity.
+
+## Grasp Videos
+
+<img src="docs/experiment_set.jpg" alt="UR10e experiment set" style="width: 50%; border-radius: 8px;"/>
+
+Short grasp demonstrations with the experiment set shown above.:
+
+- [Grasp Demo 1](docs/videos/compressed_grasp-demo-1.mp4)
+- [Grasp Demo 2](docs/videos/compressed_grasp-demo-2.mp4)
+- [Grasp Demo 3](docs/videos/compressed_grasp-demo-3.mp4)
+- [Grasp Demo 4](docs/videos/compressed_grasp-demo-4.mp4)
+- [Grasp Demo 5](docs/videos/compressed_grasp-demo-5.mp4)
+- [Calibration Demo](docs/videos/compressed_calibration-demo.mp4)
 
 ## System Overview
 
@@ -32,6 +48,8 @@ The system takes a depth image from the L515, segments the object from the works
 ## Training Custom GQ-CNNs
 
 Beyond using Berkeley's pre-trained models, this project includes the full training pipeline: building custom object databases in Dex-Net (1500 3D models from 3DNet and KIT Object databases, plus 2000+ from EGAD), generating synthetic grasp datasets with simulated depth images (order of 10⁶–10⁷ datapoints), and training GQ-CNN architectures in both the 2.0 and 4.0 configurations. Objects were rescaled to match the Robotiq 2F-85 gripper dimensions, which introduced a non-obvious problem: the grasp quality metrics scale with object size relative to the gripper, requiring careful threshold tuning to maintain the right positive/negative class balance (~20%) in the training data.
+
+<img src="docs/visualization.png" alt="Grasp visualization" width="100%"/>
 
 ## Components
 
@@ -69,7 +87,7 @@ Beyond using Berkeley's pre-trained models, this project includes the full train
 
 This was my bachelor thesis (2022), and the code reflects that — it's research-grade, not production-grade. If I were building this today, I'd structure it as a proper Python package with dependency management, containerize the Dex-Net pipeline to avoid the installation nightmare, separate the robot communication layer from the policy logic, replace the color-threshold segmentation with a learned approach (Mask R-CNN or SAM), and port the training to a modern framework. The PolicyGUI would probably be a web interface.
 
-That said, the system worked: the robot reliably grasped previously unseen objects from a cluttered workspace using only depth data and a CEM-optimized GQ-CNN policy.
+That said, the system worked: the robot reliably grasped previously unseen isolated objects using only depth data and a CEM-optimized GQ-CNN policy.
 
 *Thesis: "Robust Grasp Planning for Robots with Deep Learning Policies" (Planung robuster Greifbewegungen für Roboter unter Verwendung von Deep Learning), OTH Amberg-Weiden, 2022.*
 
